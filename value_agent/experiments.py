@@ -235,6 +235,7 @@ class Experiment(MSONable):
         recorded_at=[],
         predictions=[],
         run_parameters=[],
+        model_parameters=[],
         name=None,
         root=None,
     ):
@@ -250,6 +251,7 @@ class Experiment(MSONable):
         self._recorded_at = recorded_at
         self._predictions = predictions
         self._run_parameters = run_parameters
+        self._model_parameters = model_parameters
         self._name = name
         self._root = root
 
@@ -333,6 +335,8 @@ class Experiment(MSONable):
                     preds.pop("mean-2std")
                     self._recorded_at.append(n_dat)
                     self._predictions.append(preds)
+                    p = str(gp._get_training_debug_information())
+                    self._model_parameters.append(p)
 
                 self._data.append(next_point)
 

@@ -17,9 +17,9 @@ from value_agent.dummy.mu import (
 from value_agent.dummy.grids import get_2d_grids
 from value_agent.value import value_function, next_closest_raster_scan_point
 
-import os
-sys.path.append(os.environ["EASYBO_PATH"])
-# sys.path.append("/Users/mc/GitHub/LDRD-22-059-Zhang/EasyBO")
+# Used as a submodule
+easybo_path = str(Path(__file__).absolute().parent / "EasyBO")
+sys.path.append(easybo_path)
 from easybo.gp import EasySingleTaskGPRegressor  # noqa
 from easybo.bo import ask  # noqa
 from easybo.logger import logging_mode  # noqa

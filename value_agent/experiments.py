@@ -236,7 +236,7 @@ class Experiment(MSONable):
         predictions=[],
         run_parameters=[],
         name=None,
-        root=None
+        root=None,
     ):
         self._data = data
         self._aqf = aqf
@@ -254,8 +254,12 @@ class Experiment(MSONable):
         self._root = root
 
     def run(
-        self, pbar=False, return_self=False, n_experiments=240, save_every=40,
-        production_mode=False
+        self,
+        pbar=False,
+        return_self=False,
+        n_experiments=240,
+        save_every=40,
+        production_mode=False,
     ):
         """Runs the experiment.
 
@@ -267,7 +271,13 @@ class Experiment(MSONable):
 
         k = dict()
         if production_mode:
-            k = dict(warning=False, error=False, success=False, info=False, debug=False)
+            k = dict(
+                warning=False,
+                error=False,
+                success=False,
+                info=False,
+                debug=False,
+            )
 
         run_parameters = {
             key: value
@@ -291,7 +301,9 @@ class Experiment(MSONable):
                             train_x=self._data.X, train_y=self._data.Y
                         )
                         gp.train_()
-                    next_point = np.random.random(size=(1, self._data.X.shape[1]))
+                    next_point = np.random.random(
+                        size=(1, self._data.X.shape[1])
+                    )
                 else:
                     gp = EasySingleTaskGPRegressor(
                         train_x=self._data.X, train_y=self._data.Y

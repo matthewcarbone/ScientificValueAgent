@@ -267,6 +267,12 @@ class Experiment(MSONable):
             If True, enables the progress bar when running.
         """
 
+        if self._root is not None and self._name is not None:
+            path = Path(self._root)
+            path = path / Path(self._name + ".json")
+            if path.exists():
+                return
+
         k = dict()
         if production_mode:
             k = dict(

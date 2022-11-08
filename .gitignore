@@ -1,3 +1,6 @@
+*.yaml
+*.yml
+
 .DS_Store
 
 results*

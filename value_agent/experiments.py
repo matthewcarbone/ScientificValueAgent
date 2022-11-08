@@ -229,7 +229,7 @@ class Experiment(MSONable):
         self,
         data,
         aqf="MaxVar",
-        aqf_kwargs=dict(),
+        aqf_kwargs=None,
         points_per_dimension_full_grid=100,
         experiment_seed=123,
         recorded_at=[],
@@ -241,7 +241,7 @@ class Experiment(MSONable):
     ):
         self._data = data
         self._aqf = aqf
-        self._aqf_kwargs = aqf_kwargs
+        self._aqf_kwargs = aqf_kwargs if aqf_kwargs is not None else None
         self._bounds = [
             [self._data._metadata["xmin"], self._data._metadata["xmax"]]
             for _ in range(self._data.X.shape[1])
@@ -261,7 +261,8 @@ class Experiment(MSONable):
         return_self=False,
         n_experiments=240,
         save_every=40,
-        production_mode=False,
+        production_mode=True,
+        print_at_end=True,
     ):
         """Runs the experiment.
 
@@ -347,7 +348,7 @@ class Experiment(MSONable):
             with open(path, "w") as f:
                 json.dump(self.to_json(), f, indent=4)
 
-        if production_mode:
+        if print_at_end:
             print(f"Done: {self._root}/{self._name}", flush=True)
         if return_self:
             return self
@@ -355,6 +356,6 @@ class Experiment(MSONable):
 
 def run_experiments(list_of_experiments, n_jobs, **kwargs):
     return Parallel(n_jobs=n_jobs)(
-        delayed(exp.run)(return_self=True, production_mode=True, **kwargs)
+        delayed(exp.run)(**kwargs)
         for exp in list_of_experiments
     )

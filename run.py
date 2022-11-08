@@ -133,7 +133,7 @@ def get_random_experiments(params):
             aqf_name = aqf
         else:
             beta = int(beta)
-            aqf_name = f"{aqf}({beta})"
+            aqf_name = f"{aqf}{beta}"
 
         for cseed in coordinate_seeds:
             for eseed in experiment_seeds:
@@ -200,7 +200,7 @@ def get_grid_experiments(params):
             aqf_name = aqf
         else:
             beta = int(beta)
-            aqf_name = f"{aqf}({beta})"
+            aqf_name = f"{aqf}{beta}"
 
         for eseed in experiment_seeds:
 

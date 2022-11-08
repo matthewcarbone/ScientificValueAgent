@@ -1,3 +1,4 @@
+from copy import deepcopy
 from functools import lru_cache
 from itertools import product
 from joblib import delayed, Parallel
@@ -271,6 +272,7 @@ class Experiment(MSONable):
             path = Path(self._root)
             path = path / Path(self._name + ".json")
             if path.exists():
+                print(str(path), "exists - continuing")
                 return
             path = str(path)
 
@@ -357,7 +359,12 @@ class Experiment(MSONable):
 
 
 def run_experiments(list_of_experiments, n_jobs, **kwargs):
+
+    def _execute(exp):
+        exp = deepcopy(exp)
+        return exp.run(**kwargs)
+
     return Parallel(n_jobs=n_jobs)(
-        delayed(exp.run)(**kwargs)
+        delayed(_execute)(**kwargs)
         for exp in list_of_experiments
     )

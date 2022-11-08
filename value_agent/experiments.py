@@ -10,7 +10,6 @@ from monty.json import MSONable
 import torch
 from tqdm import tqdm
 
-from value_agent.dummy.grids import get_2d_grids
 from value_agent.value import value_function, next_closest_raster_scan_point
 
 # Used as a submodule
@@ -21,13 +20,13 @@ from easybo.bo import ask  # noqa
 from easybo.logger import logging_mode  # noqa
 
 
-def get_phase_plot_info(truth, **kwargs):
-    grids = get_2d_grids()
-    x1_grid = grids["x1"]
-    x2_grid = grids["x2"]
-    X, Y = np.meshgrid(x1_grid, x2_grid)
-    Z = truth(X, Y, **kwargs)
-    return x1_grid, x2_grid, Z
+# def get_phase_plot_info(truth, **kwargs):
+#     grids = get_2d_grids()
+#     x1_grid = grids["x1"]
+#     x2_grid = grids["x2"]
+#     X, Y = np.meshgrid(x1_grid, x2_grid)
+#     Z = truth(X, Y, **kwargs)
+#     return x1_grid, x2_grid, Z
 
 
 def oracle(X, truth, **kwargs):

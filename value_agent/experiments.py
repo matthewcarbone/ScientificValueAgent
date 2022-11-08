@@ -365,6 +365,6 @@ def run_experiments(list_of_experiments, n_jobs, **kwargs):
         return exp.run(**kwargs)
 
     return Parallel(n_jobs=n_jobs)(
-        delayed(_execute)(exp, **kwargs)
+        delayed(_execute)(exp)
         for exp in list_of_experiments
     )

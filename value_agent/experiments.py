@@ -272,6 +272,7 @@ class Experiment(MSONable):
             path = path / Path(self._name + ".json")
             if path.exists():
                 return
+            path = str(path)
 
         k = dict()
         if production_mode:

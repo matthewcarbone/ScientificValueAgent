@@ -1,92 +1,10 @@
 from pathlib import Path
 from shutil import copy2
 
-import numpy as np
-import pandas as pd
 import yaml
 
 from value_agent import experiments
-
-
-def sigmoid(x, x0, a):
-    return 1.0 / (1.0 + np.exp(-a * (x - x0)))
-
-
-def _sine(x):
-    return 0.25 * np.sin(2.0 * np.pi * x)
-
-
-def mu_Gaussians(p, E=np.linspace(-1, 1, 100), x0=0.5, sd=0.05):
-    """Returns a dummy "spectrum" which is just two Gaussian functions. The
-    proportion of the two functions is goverened by ``p``.
-    
-    Parameters
-    ----------
-    p : float
-        The proportion of the first phase.
-    E : numpy.ndarray
-        Energy grid.
-    
-    Returns
-    -------
-    numpy.ndarray
-        The spectrum on the provided grid.
-    """
-
-    p2 = 1.0 - p
-    return p * np.exp(-(x0 - E)**2 / sd) + p2 * np.exp(-(x0 + E)**2 / sd)
-
-
-def phase_1_sine_on_2d_raster(x, y, x0=0.5, a=30.0):
-    """Takes the y-distance between a sigmoid function and the provided point.
-    """
-    
-    distance = y - _sine(x)
-    return sigmoid(distance, x0, a)
-
-
-def sine_on_2d_raster_observations(X):
-    phase_1 = [phase_1_sine_on_2d_raster(*c) for c in X]
-    return np.array([mu_Gaussians(p) for p in phase_1])
-
-
-def theta_phase(x, y, x0=1, a=10):
-    # Radially symmetric about theta=0
-    # x, y = scale_coords(x, y)
-    angle = np.arctan2(y - 0.5, x - 0.5)
-    return 1.0 - sigmoid(np.abs(angle), x0=x0, a=a)
-
-
-def corner_phase(x, y, x0=0.25, a=20, loc_x=0.0, loc_y=1.0):
-    # Distance from the top left corner
-    # x, y = scale_coords(x, y)
-    r = np.sqrt((loc_x - x)**2 + (loc_y - y)**2)
-    return 1.0 - sigmoid(r, x0=x0, a=a)
-
-
-def circle_phase(x, y, x0=0.5, a=20, loc_x=0.125, loc_y=0.125):
-    # Distance from a point near the bottom right quadrant
-    # x, y = scale_coords(x, y)
-    r = np.sqrt((loc_x - x)**2 + (loc_y - y)**2)
-    return 1.0 - sigmoid(r, x0=x0, a=a)
-
-
-# Utterly horrendous practice here but for this it's fine...
-df = pd.read_excel('data/xrd_map.xlsx', header=0, index_col=0)
-Y = df.to_numpy().T
-indexes = [0, 100, 150, 230]
-pure_phases = Y[indexes, ::20]
-
-
-def truth_4phase(X):
-    # Gets the actual "value" of the observation
-    prop2 = theta_phase(X[:, 0], X[:, 1], x0=0.5, a=5.0)
-    prop1 = corner_phase(X[:, 0], X[:, 1], x0=0.5, a=30.0)
-    prop3 = circle_phase(X[:, 0], X[:, 1], x0=0.05, a=50.0)
-    total_prop = prop1 + prop2 + prop3
-    total_prop[total_prop > 1.0] = 1.0
-    prop4 = 1.0 - total_prop
-    return np.array([prop1, prop2, prop3, prop4]).T @ pure_phases
+from value_agent.phases import sine_on_2d_raster_observations, truth_4phase
 
 
 def get_random_experiments(params):
@@ -148,6 +66,7 @@ def get_random_experiments(params):
 
                 coordinates_kwargs = coordinates_fixed_kwargs.copy()
                 coordinates_kwargs["seed"] = cseed
+                coordinates_kwargs["sd"] = params["sd"]
                 d0 = experiments.Data.from_random(**coordinates_kwargs)
 
                 exp = experiments.Experiment(data=d0, **experiment_kwargs)
@@ -213,6 +132,7 @@ def get_grid_experiments(params):
             experiment_kwargs["name"] = name
 
             coordinates_kwargs = coordinates_fixed_kwargs.copy()
+            coordinates_kwargs["sd"] = params["sd"]
             d0 = experiments.Data.from_grid(**coordinates_kwargs)
 
             exp = experiments.Experiment(data=d0, **experiment_kwargs)

@@ -21,16 +21,7 @@ from easybo.bo import ask  # noqa
 from easybo.logger import logging_mode  # noqa
 
 
-# def get_phase_plot_info(truth, **kwargs):
-#     grids = get_2d_grids()
-#     x1_grid = grids["x1"]
-#     x2_grid = grids["x2"]
-#     X, Y = np.meshgrid(x1_grid, x2_grid)
-#     Z = truth(X, Y, **kwargs)
-#     return x1_grid, x2_grid, Z
-
-
-def oracle(X, truth, **kwargs):
+def oracle(X, truth, sd=None, **kwargs):
     """Converts observations to the value function.
 
     Parameters
@@ -48,7 +39,7 @@ def oracle(X, truth, **kwargs):
         The value of the points.
     """
 
-    return value_function(X, truth(X, **kwargs))
+    return value_function(X, truth(X, **kwargs), sd=sd)
 
 
 def get_valid_X(xmin, xmax, n_raster, ndim):
@@ -65,7 +56,15 @@ class Data(MSONable):
 
     @classmethod
     def from_random(
-        cls, truth, xmin=0.0, xmax=1.0, seed=125, n=3, ndim=2, n_raster=None
+        cls,
+        truth,
+        xmin=0.0,
+        xmax=1.0,
+        seed=125,
+        n=3,
+        ndim=2,
+        n_raster=None,
+        sd=None,
     ):
         """Gets a ``Data`` object from a random sampling of the space.
 
@@ -99,9 +98,9 @@ class Data(MSONable):
             observed = np.ones(shape=(1, ndim)) * np.inf  # Dummy
             X = next_closest_raster_scan_point(X, observed, valid_X)
 
-        Y = np.array(oracle(X, truth)).reshape(-1, 1)
+        Y = np.array(oracle(X, truth, sd=sd)).reshape(-1, 1)
         metadata = dict(xmin=xmin, xmax=xmax, seed=seed)
-        return cls(truth, X=X, Y=Y, valid_X=valid_X, metadata=metadata)
+        return cls(truth, X=X, Y=Y, valid_X=valid_X, metadata=metadata, sd=sd)
 
     @classmethod
     def from_grid(
@@ -112,6 +111,7 @@ class Data(MSONable):
         points_per_dimension=3,
         ndim=2,
         n_raster=None,
+        sd=None,
     ):
         """Summary
 
@@ -144,9 +144,9 @@ class Data(MSONable):
             observed = np.ones(shape=(1, ndim)) * np.inf  # Dummy
             X = next_closest_raster_scan_point(X, observed, valid_X)
 
-        Y = np.array(oracle(X, truth)).reshape(-1, 1)
+        Y = np.array(oracle(X, truth, sd=sd)).reshape(-1, 1)
         metadata = dict(xmin=xmin, xmax=xmax)
-        return cls(truth, X=X, Y=Y, valid_X=valid_X, metadata=metadata)
+        return cls(truth, X=X, Y=Y, valid_X=valid_X, metadata=metadata, sd=sd)
 
     @property
     def X(self):
@@ -181,7 +181,9 @@ class Data(MSONable):
         gen = product(*[grid for _ in range(self._X.shape[1])])
         return np.array([xx for xx in gen])
 
-    def __init__(self, truth, X, Y, nseed=None, valid_X=None, metadata=dict()):
+    def __init__(
+        self, truth, X, Y, nseed=None, valid_X=None, metadata=dict(), sd=None
+    ):
         self._truth = truth
         self._X = X
         self._Y = Y
@@ -192,11 +194,14 @@ class Data(MSONable):
         assert self.Y.shape[0] == self.X.shape[0]
         self._valid_X = valid_X
         self._metadata = metadata
+        self._sd = sd
 
     def append(self, X):
         X = X.reshape(-1, self._X.shape[1])
         self._X = np.concatenate([self._X, X], axis=0)
-        self._Y = np.array(oracle(self._X, self._truth)).reshape(-1, 1)
+        self._Y = np.array(oracle(self._X, self._truth, sd=self._sd)).reshape(
+            -1, 1
+        )
 
 
 class Experiment(MSONable):
@@ -359,12 +364,10 @@ class Experiment(MSONable):
 
 
 def run_experiments(list_of_experiments, n_jobs, **kwargs):
-
     def _execute(exp):
         exp = deepcopy(exp)
         return exp.run(**kwargs)
 
     return Parallel(n_jobs=n_jobs)(
-        delayed(_execute)(exp)
-        for exp in list_of_experiments
+        delayed(_execute)(exp) for exp in list_of_experiments
     )

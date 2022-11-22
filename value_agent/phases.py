@@ -1,7 +1,9 @@
+from functools import cache
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from sklearn.neighbors import KNeighborsRegressor
 
 
 def get_2d_grids(
@@ -114,15 +116,19 @@ def circle_phase(x, y, x0=0.5, a=20, loc_x=0.125, loc_y=0.125):
     return 1.0 - sigmoid(r, x0=x0, a=a)
 
 
-# Utterly horrendous practice here but for this it's fine...
-p = Path(__file__).absolute().parent / "xrd_map.xlsx"
-df = pd.read_excel(p, header=0, index_col=0)
-Y = df.to_numpy().T
-indexes = [0, 100, 150, 230]
-pure_phases = Y[indexes, ::20]
+@cache
+def _get_xrd_map():
+
+    # Utterly horrendous practice here but for this it's fine...
+    p = Path(__file__).absolute().parent / "xrd_map.xlsx"
+    df = pd.read_excel(p, header=0, index_col=0)
+    Y = df.to_numpy().T
+    indexes = [0, 100, 150, 230]
+    return Y[indexes, ::20]
 
 
 def truth_4phase(X):
+    pure_phases = _get_xrd_map()
     # Gets the actual "value" of the observation
     prop2 = theta_phase(X[:, 0], X[:, 1], x0=0.5, a=5.0)
     prop1 = corner_phase(X[:, 0], X[:, 1], x0=0.5, a=30.0)
@@ -131,3 +137,21 @@ def truth_4phase(X):
     total_prop[total_prop > 1.0] = 1.0
     prop4 = 1.0 - total_prop
     return np.array([prop1, prop2, prop3, prop4]).T @ pure_phases
+
+
+@cache
+def _get_uv_model():
+
+    p = Path(__file__).absolute().parent / "uv_data.csv"
+    df = pd.read_csv(p)
+    X = df[["NCit", "pH", "HA"]].to_numpy()
+    X[:, 1] += 16.0
+    Y = df.iloc[:, 4:].to_numpy()
+    knn = KNeighborsRegressor(n_neighbors=2, weights="distance")
+    knn.fit(X, Y)
+    return knn
+
+
+def truth_uv(x):
+    model = _get_uv_model()
+    return model.predict(x)

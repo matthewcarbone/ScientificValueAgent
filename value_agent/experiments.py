@@ -177,8 +177,16 @@ class Data(MSONable):
     def get_full_grid(self, n=100):
         xmin = self._metadata["xmin"]
         xmax = self._metadata["xmax"]
-        grid = np.linspace(xmin, xmax, n)
-        gen = product(*[grid for _ in range(self._X.shape[1])])
+
+        if isinstance(xmin, (float, int)) and isinstance(xmax, (float, int)):
+            grid = np.linspace(xmin, xmax, n)
+            gen = product(*[grid for _ in range(self._X.shape[1])])
+            
+        else:
+            assert len(xmin) == len(xmax)
+            grids = [np.linspace(xx, yy, n) for xx, yy in zip(xmin, xmax)]
+            gen = product(*grids)
+
         return np.array([xx for xx in gen])
 
     def __init__(
@@ -204,6 +212,30 @@ class Data(MSONable):
         )
 
 
+class UVData(Data):
+
+    @classmethod
+    def from_random(
+        cls,
+        truth,
+        xmin,
+        xmax,
+        seed=125,
+        n=3,
+        sd=None,
+    ):
+        assert len(xmin) == len(xmax)
+        ndim = len(xmin)
+
+        np.random.seed(seed)
+        X = np.random.random(size=(n, ndim))
+        X = (xmax - xmin) * X + xmin
+
+        Y = np.array(oracle(X, truth, sd=sd)).reshape(-1, 1)
+        metadata = dict(xmin=xmin, xmax=xmax, seed=seed)
+        return cls(truth, X=X, Y=Y, valid_X=None, metadata=metadata, sd=sd)
+
+
 class Experiment(MSONable):
     @property
     def name(self):
@@ -226,11 +258,28 @@ class Experiment(MSONable):
     def data(self):
         return self._data
 
+    def _init_bounds(self):
+        xmin = self._data._metadata["xmin"] 
+        xmax = self._data._metadata["xmax"]
+
+        if isinstance(xmin, (int, float)) and isinstance(xmax, (int, float)):
+            self._bounds = [
+                [xmin, xmax]
+                for _ in range(self._data.X.shape[1])
+            ]
+
+        else:
+            assert len(xmin) == len(xmax)
+            self._bounds = [
+                [x0, xf] for x0, xf in zip(xmin, xmax)
+            ]
+
     def __init__(
         self,
         data,
         aqf="MaxVar",
-        aqf_kwargs=None,
+        aqf_kwargs=dict(),
+        optimize_acqf_kwargs={"q": 1, "num_restarts": 5, "raw_samples": 20},
         points_per_dimension_full_grid=100,
         experiment_seed=123,
         recorded_at=[],
@@ -242,11 +291,9 @@ class Experiment(MSONable):
     ):
         self._data = data
         self._aqf = aqf
-        self._aqf_kwargs = aqf_kwargs if aqf_kwargs is not None else None
-        self._bounds = [
-            [self._data._metadata["xmin"], self._data._metadata["xmax"]]
-            for _ in range(self._data.X.shape[1])
-        ]
+        self._aqf_kwargs = aqf_kwargs
+        self._optimize_acqf_kwargs = optimize_acqf_kwargs
+        self._init_bounds()
         self._points_per_dimension_full_grid = points_per_dimension_full_grid
         self._experiment_seed = experiment_seed
         self._recorded_at = recorded_at
@@ -328,6 +375,7 @@ class Experiment(MSONable):
                         acquisition_function_kwargs=self._aqf_kwargs
                         if self._aqf != "EI"
                         else dict(best_f=np.max(self._data.Y)),
+                        optimize_acqf_kwargs=self._optimize_acqf_kwargs
                     )
 
                 if self._data.valid_X is not None:

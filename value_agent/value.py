@@ -65,10 +65,12 @@ def symmetric_value_function(X, Y):
     distance = X_dist.copy()
     distance[distance == 0.0] = np.inf
     sd = distance.min(axis=1, keepdims=True)  # (N, 1)
-    sd = sd * sd.T  # Symmetric piece (N, 1) * (1, N) = (N, N)
+
+    # Length scale
+    ls = sd * sd.T  # Symmetric piece (N, 1) * (1, N) = (N, N)
 
     Y_dist = distance_matrix(Y, Y)
 
-    v = Y_dist * np.exp(-X_dist**2 / sd**2 / 2.0)
+    v = Y_dist * np.exp(-X_dist**2 / ls / 2.0)
 
     return v.mean(axis=1)

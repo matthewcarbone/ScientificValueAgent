@@ -8,10 +8,9 @@ import sys
 
 import numpy as np
 from monty.json import MSONable
+from scipy.spatial import distance_matrix
 import torch
 from tqdm import tqdm
-
-from value_agent.value import value_function, next_closest_raster_scan_point
 
 # Used as a submodule
 easybo_path = str(Path(__file__).absolute().parent / "EasyBO")
@@ -21,17 +20,74 @@ from easybo.bo import ask  # noqa
 from easybo.logger import logging_mode  # noqa
 
 
-def oracle(X, truth, sd=None, **kwargs):
+def next_closest_raster_scan_point(
+    proposed_points, observed_points, possible_coordinates, eps=1e-8
+):
+    """A helper function which determines the closest grid point for every
+    proposed points, under the constraint that the proposed point is not
+    present in the currently observed points, given possible coordinates.
+
+    Parameters
+    ----------
+    proposed_points : array_like
+        The proposed points. Should be of shape N x d, where d is the dimension
+        of the space (e.g. 2-dimensional for a 2d raster). N is the number of
+        proposed points (i.e. the batch size).
+    observed_points : array_like
+        Points that have been previously observed. N1 x d, where N1 is the
+        number of previously observed points.
+    possible_coordinates : array_like
+        A grid of possible coordinates, options to choose from. N2 x d, where
+        N2 is the number of coordinates on the grid.
+    eps : float, optional
+        The cutoff for determining that two points are the same, as computed
+        by the L2 norm via scipy's ``distance_matrix``.
+
+    Returns
+    -------
+    numpy.ndarray
+        The new proposed points. REturns None if no new points were found.
+    """
+
+    assert proposed_points.shape[1] == observed_points.shape[1]
+    assert proposed_points.shape[1] == possible_coordinates.shape[1]
+
+    D2 = distance_matrix(observed_points, possible_coordinates) > eps
+    D2 = np.all(D2, axis=0)
+
+    actual_points = []
+    for possible_point in proposed_points:
+        p = possible_point.reshape(1, -1)
+        D = distance_matrix(p, possible_coordinates).squeeze()
+        argsorted = np.argsort(D)
+        for index in argsorted:
+            if D2[index]:
+                actual_points.append(possible_coordinates[index])
+                break
+
+    if len(actual_points) == 0:
+        return None
+
+    return np.array(actual_points)
+
+
+def oracle(X, truth, value, truth_kwargs=dict(), value_kwargs=dict()):
     """Converts observations to the value function.
 
     Parameters
     ----------
     X : array_like
         Input points.
-    truth : callable, optional
-        The source of truth. Produces the observation from the input points.
-    **kwargs
+    truth : callable
+        The source of truth for the observation. Produces the observation from
+        the input points.
+    value : callable
+        The value function, which maps the inputs and observations to the
+        scalar value.
+    truth_kwargs : dict, optional
         Keyword arguments for the truth function.
+    value_kwargs : dict, optional
+        Keyword arguments for the value function.
 
     Returns
     -------
@@ -39,7 +95,7 @@ def oracle(X, truth, sd=None, **kwargs):
         The value of the points.
     """
 
-    return value_function(X, truth(X, **kwargs), sd=sd)
+    return value(X, truth(X, **truth_kwargs), **value_kwargs)
 
 
 def get_valid_X(xmin, xmax, n_raster, ndim):
@@ -55,98 +111,83 @@ class Data(MSONable):
     scientific value function | X."""
 
     @classmethod
-    def from_random(
+    def from_initial_conditions(
         cls,
         truth,
-        xmin=0.0,
-        xmax=1.0,
-        seed=125,
-        n=3,
-        ndim=2,
-        n_raster=None,
-        sd=None,
-    ):
-        """Gets a ``Data`` object from a random sampling of the space.
-
-        Parameters
-        ----------
-        truth : TYPE
-            Description
-        xmin : float, optional
-            Description
-        xmax : float, optional
-            Description
-        seed : int, optional
-            Description
-        n : int, optional
-            Description
-        ndim : int, optional
-            Description
-        n_raster : None, optional
-            Description
-        """
-
-        if n_raster is None:
-            valid_X = None
-        else:
-            valid_X = get_valid_X(xmin, xmax, n_raster, ndim)
-
-        np.random.seed(seed)
-        X = np.random.random(size=(n, ndim))
-
-        if valid_X is not None:
-            observed = np.ones(shape=(1, ndim)) * np.inf  # Dummy
-            X = next_closest_raster_scan_point(X, observed, valid_X)
-
-        Y = np.array(oracle(X, truth, sd=sd)).reshape(-1, 1)
-        metadata = dict(xmin=xmin, xmax=xmax, seed=seed)
-        return cls(truth, X=X, Y=Y, valid_X=valid_X, metadata=metadata, sd=sd)
-
-    @classmethod
-    def from_grid(
-        cls,
-        truth,
+        value,
+        seed,
+        how,
+        truth_kwargs=dict(),
+        value_kwargs=dict(),
         xmin=0.0,
         xmax=1.0,
         points_per_dimension=3,
         ndim=2,
         n_raster=None,
-        sd=None,
     ):
-        """Summary
+        """Gets a ``Data`` object from a specified sampling of the space.
 
         Parameters
         ----------
-        truth : TYPE
-            Description
+        truth : callable
+        value : callable
+        seed : int
+            The random seed to use for sampling the points.
+        how : {"random", "grid"}
+            The type of initial grid to use.
+        truth_kwargs : dict, optional
+        value_kwargs : dict, optional
         xmin : float, optional
-            Description
+            The minimum value to sample from on each dimension.
         xmax : float, optional
-            Description
-        n : int, optional
-            Description
+            The maximum value to sample from on each dimension.
+        points_per_dimension : int, optional
+            The number of points to sample per dimension.
         ndim : int, optional
-            Description
-        n_raster : None, optional
-            Description
+            The number of dimensions.
+        n_raster : int, optional
+            If not None, this is the number of uniform points per dimension
+            that are "allowed" to be sampled in any future experiment.
         """
 
-        if n_raster is None:
-            valid_X = None
-        else:
+        valid_X = None
+        if n_raster is not None:
             valid_X = get_valid_X(xmin, xmax, n_raster, ndim)
 
-        xgrid = np.linspace(xmin, xmax, points_per_dimension + 2)
-        xgrid = xgrid[1:-1]
-        X = np.array([xx for xx in product(*[xgrid for _ in range(ndim)])])
+        if how == "random":
+            np.random.seed(seed)
+            X = np.random.random(size=(points_per_dimension, ndim))
+        elif how == "grid":
+            xgrid = np.linspace(xmin, xmax, points_per_dimension + 2)
+            xgrid = xgrid[1:-1]
+            X = np.array([xx for xx in product(*[xgrid for _ in range(ndim)])])
+        else:
+            raise ValueError(f"Unknown initial condition type {how}")
 
         if valid_X is not None:
             observed = np.ones(shape=(1, ndim)) * np.inf  # Dummy
             X = next_closest_raster_scan_point(X, observed, valid_X)
 
-        Y = np.array(oracle(X, truth, sd=sd)).reshape(-1, 1)
-        metadata = dict(xmin=xmin, xmax=xmax)
-        return cls(truth, X=X, Y=Y, valid_X=valid_X, metadata=metadata, sd=sd)
+        Y = np.array(
+            oracle(
+                X,
+                truth,
+                value,
+                truth_kwargs=truth_kwargs,
+                value_kwargs=value_kwargs,
+            )
+        ).reshape(-1, 1)
+        metadata = dict(xmin=xmin, xmax=xmax, seed=seed)
+        return cls(
+            truth,
+            value,
+            truth_kwargs,
+            value_kwargs,
+            X=X,
+            Y=Y,
+            valid_X=valid_X,
+            metadata=metadata,
+        )
 
     @property
     def X(self):
@@ -158,11 +199,11 @@ class Data(MSONable):
 
     @property
     def X0(self):
-        return self._X[: self._nseed, :]
+        return self._X[: self._n_initial_points, :]
 
     @property
     def Y0(self):
-        return self._Y[: self._nseed, :]
+        return self._Y[: self._n_initial_points, :]
 
     @property
     def N(self):
@@ -181,7 +222,7 @@ class Data(MSONable):
         if isinstance(xmin, (float, int)) and isinstance(xmax, (float, int)):
             grid = np.linspace(xmin, xmax, n)
             gen = product(*[grid for _ in range(self._X.shape[1])])
-            
+
         else:
             assert len(xmin) == len(xmax)
             grids = [np.linspace(xx, yy, n) for xx, yy in zip(xmin, xmax)]
@@ -190,34 +231,53 @@ class Data(MSONable):
         return np.array([xx for xx in gen])
 
     def __init__(
-        self, truth, X, Y, nseed=None, valid_X=None, metadata=dict(), sd=None
+        self,
+        truth,
+        value,
+        truth_kwargs,
+        value_kwargs,
+        X,
+        Y,
+        n_initial_points=None,
+        valid_X=None,
+        metadata=dict()
     ):
         self._truth = truth
+        self._value = value
+        self._truth_kwargs = truth_kwargs
+        self._value_kwargs = value_kwargs
         self._X = X
         self._Y = Y
-        if nseed is None:
-            self._nseed = self.X.shape[0]
+        if n_initial_points is None:
+            self._n_initial_points = self.X.shape[0]
         else:
-            self._nseed = nseed
+            self._n_initial_points = n_initial_points
         assert self.Y.shape[0] == self.X.shape[0]
         self._valid_X = valid_X
         self._metadata = metadata
-        self._sd = sd
 
     def append(self, X):
         X = X.reshape(-1, self._X.shape[1])
         self._X = np.concatenate([self._X, X], axis=0)
-        self._Y = np.array(oracle(self._X, self._truth, sd=self._sd)).reshape(
-            -1, 1
-        )
+        self._Y = np.array(
+            oracle(
+                self._X,
+                self._truth,
+                self._value,
+                self._truth_kwargs,
+                self._value_kwargs,
+            )
+        ).reshape(-1, 1)
 
 
 class UVData(Data):
-
     @classmethod
     def from_random(
         cls,
         truth,
+        value,
+        truth_kwargs,
+        value_kwargs,
         xmin,
         xmax,
         seed=125,
@@ -231,9 +291,20 @@ class UVData(Data):
         X = np.random.random(size=(n, ndim))
         X = (xmax - xmin) * X + xmin
 
-        Y = np.array(oracle(X, truth, sd=sd)).reshape(-1, 1)
+        Y = np.array(
+            oracle(X, truth, value, truth_kwargs, value_kwargs)
+        ).reshape(-1, 1)
         metadata = dict(xmin=xmin, xmax=xmax, seed=seed)
-        return cls(truth, X=X, Y=Y, valid_X=None, metadata=metadata, sd=sd)
+        return cls(
+            truth,
+            value,
+            truth_kwargs,
+            value_kwargs,
+            X=X,
+            Y=Y,
+            valid_X=None,
+            metadata=metadata,
+        )
 
 
 class Experiment(MSONable):
@@ -259,20 +330,15 @@ class Experiment(MSONable):
         return self._data
 
     def _init_bounds(self):
-        xmin = self._data._metadata["xmin"] 
+        xmin = self._data._metadata["xmin"]
         xmax = self._data._metadata["xmax"]
 
         if isinstance(xmin, (int, float)) and isinstance(xmax, (int, float)):
-            self._bounds = [
-                [xmin, xmax]
-                for _ in range(self._data.X.shape[1])
-            ]
+            self._bounds = [[xmin, xmax] for _ in range(self._data.X.shape[1])]
 
         else:
             assert len(xmin) == len(xmax)
-            self._bounds = [
-                [x0, xf] for x0, xf in zip(xmin, xmax)
-            ]
+            self._bounds = [[x0, xf] for x0, xf in zip(xmin, xmax)]
 
     def __init__(
         self,
@@ -287,7 +353,6 @@ class Experiment(MSONable):
         run_parameters=[],
         model_parameters=[],
         name=None,
-        root=None,
     ):
         self._data = data
         self._aqf = aqf
@@ -301,7 +366,6 @@ class Experiment(MSONable):
         self._run_parameters = run_parameters
         self._model_parameters = model_parameters
         self._name = name
-        self._root = root
 
     def run(
         self,
@@ -320,9 +384,9 @@ class Experiment(MSONable):
             If True, enables the progress bar when running.
         """
 
-        if self._root is not None and self._name is not None:
-            path = Path(self._root)
-            path = path / Path(self._name + ".json")
+        path = None
+        if self._name is not None:
+            path = Path(self._name + ".json")
             if path.exists():
                 print(str(path), "exists - continuing")
                 return
@@ -375,7 +439,7 @@ class Experiment(MSONable):
                         acquisition_function_kwargs=self._aqf_kwargs
                         if self._aqf != "EI"
                         else dict(best_f=np.max(self._data.Y)),
-                        optimize_acqf_kwargs=self._optimize_acqf_kwargs
+                        optimize_acqf_kwargs=self._optimize_acqf_kwargs,
                     )
 
                 if self._data.valid_X is not None:
@@ -398,15 +462,12 @@ class Experiment(MSONable):
 
                 self._data.append(next_point)
 
-        if self._root is not None and self._name is not None:
-            path = Path(self._root)
-            path.mkdir(exist_ok=True, parents=True)
-            path = path / Path(self._name + ".json")
+        if path is not None:
             with open(path, "w") as f:
                 json.dump(self.to_json(), f, indent=4)
 
         if print_at_end:
-            print(f"Done: {self._root}/{self._name}", flush=True)
+            print(f"Done: {self._name}", flush=True)
         if return_self:
             return self
 

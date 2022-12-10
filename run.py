@@ -63,26 +63,24 @@ def get_experiments(params):
             beta = int(beta)
             aqf_name = f"{aqf}{beta}"
 
-        for cseed in coords_seeds:
-            for eseed in exp_seeds:
+        for (cseed, eseed) in zip(coords_seeds, exp_seeds):
 
-                name = f"{aqf_name}-seed-{cseed}-{eseed}"
+            name = f"{aqf_name}-seed-{cseed}-{eseed}"
 
-                experiment_kwargs = experiment_fixed_kwargs.copy()
-                experiment_kwargs["aqf"] = aqf
-                experiment_kwargs["aqf_kwargs"] = aqf_kwargs
-                experiment_kwargs["experiment_seed"] = eseed
-                experiment_kwargs["name"] = name
+            experiment_kwargs = experiment_fixed_kwargs.copy()
+            experiment_kwargs["aqf"] = aqf
+            experiment_kwargs["aqf_kwargs"] = aqf_kwargs
+            experiment_kwargs["experiment_seed"] = eseed
+            experiment_kwargs["name"] = name
 
-                coordinates_kwargs = coordinates_fixed_kwargs.copy()
-                coordinates_kwargs["seed"] = cseed
-                coordinates_kwargs["sd"] = params["sd"]
-                d0 = experiments.Data.from_initial_conditions(
-                    **coordinates_kwargs
-                )
+            coordinates_kwargs = coordinates_fixed_kwargs.copy()
+            coordinates_kwargs["seed"] = cseed
+            d0 = experiments.Data.from_initial_conditions(
+                **coordinates_kwargs
+            )
 
-                exp = experiments.Experiment(data=d0, **experiment_kwargs)
-                list_of_experiments.append(exp)
+            exp = experiments.Experiment(data=d0, **experiment_kwargs)
+            list_of_experiments.append(exp)
 
     names = [xx.name for xx in list_of_experiments]
     assert len(names) == len(set(names))  # Assert all names unique

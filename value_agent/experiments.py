@@ -281,8 +281,7 @@ class UVData(Data):
         xmin,
         xmax,
         seed=125,
-        n=3,
-        sd=None,
+        n=3
     ):
         assert len(xmin) == len(xmax)
         ndim = len(xmin)

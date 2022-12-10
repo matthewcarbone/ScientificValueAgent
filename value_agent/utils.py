@@ -12,5 +12,5 @@ def get_function_from_signature(signature):
     """
 
     module, function = signature.split(":")
-    eval(f"from {module} import {function}")
+    exec(f"from {module} import {function}")
     return eval(function)

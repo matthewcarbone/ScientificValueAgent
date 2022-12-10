@@ -1,4 +1,5 @@
 *.yaml
+!example_jobs.yaml
 *.yml
 *.xlsx
 results/

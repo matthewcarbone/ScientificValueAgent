@@ -1,0 +1,35 @@
+# Note that this file should be named jobs.yaml and inside the directory in
+# which the results should be saved.
+
+n_full_grid: 100
+n_raster: null
+n_multiprocessing_jobs: 12
+
+value_function_signature: "value_agent.value:symmetric_value_function"
+value_function_kwargs:
+  sd: null
+  multiplier: 1.0
+
+truth_function_signature: "value_agent.truth:truth_sine2phase"
+
+how: "random"
+
+jobs:
+  - aqf: "Random"
+  - aqf: "MaxVar"
+  - aqf: "EI"
+  - aqf: "UCB"
+    aqf_kwargs:
+      beta: 1
+  - aqf: "UCB"
+    aqf_kwargs:
+      beta: 10
+  - aqf: "UCB"
+    aqf_kwargs:
+      beta: 20
+  - aqf: "UCB"
+    aqf_kwargs:
+      beta: 100
+
+seed: 123
+total_jobs: 900

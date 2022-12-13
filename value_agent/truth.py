@@ -10,10 +10,10 @@ def get_2d_grids(
     x1_grid=np.linspace(0, 1, 51),
     x2_grid=np.linspace(0, 1, 51),
     n_downsample=100,
-    seed=123
+    seed=123,
 ):
     """Gets some two-dimensional grids for testing and other work.
-    
+
     Parameters
     ----------
     x1_grid : numpy.ndarray, optional
@@ -31,16 +31,16 @@ def get_2d_grids(
     np.random.seed(seed)
     N = len(x1_grid) * len(x2_grid)
     random_sample = np.sort(np.random.choice(range(N), 100, replace=False))
-    full_input_coords = np.array([
-        [_x1, _x2] for _x1 in x1_grid for _x2 in x2_grid
-    ])
+    full_input_coords = np.array(
+        [[_x1, _x2] for _x1 in x1_grid for _x2 in x2_grid]
+    )
     input_coords = full_input_coords[random_sample, :]
     return {
         "x1": x1_grid,
         "x2": x2_grid,
         "input_coords": input_coords,
         "full_input_coords": full_input_coords,
-        "seed": seed
+        "seed": seed,
     }
 
 
@@ -64,14 +64,14 @@ def _sine(x):
 def mu_Gaussians(p, E=np.linspace(-1, 1, 100), x0=0.5, sd=0.05):
     """Returns a dummy "spectrum" which is just two Gaussian functions. The
     proportion of the two functions is goverened by ``p``.
-    
+
     Parameters
     ----------
     p : float
         The proportion of the first phase.
     E : numpy.ndarray
         Energy grid.
-    
+
     Returns
     -------
     numpy.ndarray
@@ -79,13 +79,14 @@ def mu_Gaussians(p, E=np.linspace(-1, 1, 100), x0=0.5, sd=0.05):
     """
 
     p2 = 1.0 - p
-    return p * np.exp(-(x0 - E)**2 / sd) + p2 * np.exp(-(x0 + E)**2 / sd)
+    return p * np.exp(-((x0 - E) ** 2) / sd) + p2 * np.exp(
+        -((x0 + E) ** 2) / sd
+    )
 
 
 def phase_1_sine_on_2d_raster(x, y, x0=0.5, a=30.0):
-    """Takes the y-distance between a sigmoid function and the provided point.
-    """
-    
+    """Takes the y-distance between a sigmoid function and the provided point."""
+
     distance = y - _sine(x)
     return sigmoid(distance, x0, a)
 
@@ -105,14 +106,14 @@ def theta_phase(x, y, x0=1, a=10):
 def corner_phase(x, y, x0=0.25, a=20, loc_x=0.0, loc_y=1.0):
     # Distance from the top left corner
     # x, y = scale_coords(x, y)
-    r = np.sqrt((loc_x - x)**2 + (loc_y - y)**2)
+    r = np.sqrt((loc_x - x) ** 2 + (loc_y - y) ** 2)
     return 1.0 - sigmoid(r, x0=x0, a=a)
 
 
 def circle_phase(x, y, x0=0.5, a=20, loc_x=0.125, loc_y=0.125):
     # Distance from a point near the bottom right quadrant
     # x, y = scale_coords(x, y)
-    r = np.sqrt((loc_x - x)**2 + (loc_y - y)**2)
+    r = np.sqrt((loc_x - x) ** 2 + (loc_y - y) ** 2)
     return 1.0 - sigmoid(r, x0=x0, a=a)
 
 
@@ -155,3 +156,90 @@ def _get_uv_model():
 def truth_uv(x):
     model = _get_uv_model()
     return model.predict(x)
+
+
+@cache
+def _get_1d_phase_data():
+    """Construct 1-D phase diagram akin to
+    |---A---|---A  B (linear)---|---B---|---B+C (quadratic)---|---C---|---D---|
+    Where the dataset
+
+    Returns
+    -------
+    np.ndarray:
+        (4, N) array of data describing the phases
+    """
+    return np.concatenate(
+        (
+            np.zeros((1, 100)),
+            np.ones((1, 100)),
+            np.ones((1, 100)) * 0.5,
+            np.ones((1, 100)) * 3,
+        ),
+        axis=0,
+    )  # TODO: load some real data
+
+
+def _get_1d_phase_fractions(
+    X: np.ndarray, b_start=10, a_stop=50, c_start=60, b_stop=80, c_stop=90
+):
+    """Construct the weights for a 1d phase diagram
+    |---A---|---A+B (linear)---|---B---|---B+C (quadratic)---|---C---|---D---|
+
+    Parameters
+    ----------
+    X : np.ndarray
+        1-d array of points to gather fractions of
+    b_start : int, optional
+        Where the A+B phase begins, by default 10
+    a_stop : int, optional
+        Where pure B phase begins, by default 50
+    c_start : int, optional
+        Where the B+C phase begins, by default 60
+    b_stop : int, optional
+        Where the pure C phase begins, by default 80
+    c_stop : int, optional
+        Where C will abruptly transition to D., by default 90
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
+
+    weights = np.zeros((4, X.shape[0]))
+    weights[0, :] += X < b_start  # Pure A
+    weights[1, :] += (a_stop < X) & (X < c_start)  # Pure B
+    weights[2, :] += (b_stop < X) & (X < c_stop - 1)  # Pure C
+    weights[3, :] += X > c_stop + 1  # Pure D
+
+    # A+B Linear
+    weights[0, :] += ((X < a_stop) & (X > b_start)) * (
+        1 - (X - b_start) / (a_stop - b_start)
+    )
+    weights[1, :] += (
+        ((X < a_stop) & (X > b_start)) * (X - b_start) / (a_stop - b_start)
+    )
+
+    # B+C Quadratic
+    weights[1, :] += ((X > c_start) & (X < b_stop)) * (
+        1 - ((X - c_start) / (b_stop - c_start)) ** 2
+    )
+    weights[2, :] += ((X > c_start) & (X < b_stop)) * (
+        (X - c_start) / (b_stop - c_start)
+    ) ** 2
+
+    # C+D Sigmoidal
+    weights[2, :] += ((X > c_stop - 1) & (X < c_stop + 1)) * (
+        1 - sigmoid(X, c_stop, 100)
+    )
+    weights[3, :] += ((X > c_stop - 1) & (X < c_stop + 1)) * sigmoid(
+        X, c_stop, 100
+    )
+    return weights
+
+
+def truth_1d_phase(X):
+    phases = _get_1d_phase_data()
+    weights = _get_1d_phase_fractions(X)
+    return (phases.T @ weights).T

@@ -158,6 +158,10 @@ def truth_uv(x):
     return model.predict(x)
 
 
+def gaussian(x, mu, sig, a):
+    return a * np.exp(-np.power(x - mu, 2.0) / (2 * np.power(sig, 2.0)))
+
+
 @cache
 def _get_1d_phase_data():
     """Construct 1-D phase diagram akin to
@@ -169,15 +173,27 @@ def _get_1d_phase_data():
     np.ndarray:
         (4, N) array of data describing the phases
     """
-    return np.concatenate(
-        (
-            np.zeros((1, 100)),
-            np.ones((1, 100)),
-            np.ones((1, 100)) * 0.5,
-            np.ones((1, 100)) * 3,
-        ),
-        axis=0,
-    )  # TODO: load some real data
+    phases = np.zeros((4, 1000))
+    x = np.linspace(0, 9, 1000)
+    phases[0, :] += gaussian(x, 2, 0.03, 3) + gaussian(x, 6, 0.04, 1)
+    phases[1, :] += (
+        gaussian(x, 3, 0.05, 2)
+        + gaussian(x, 5, 0.05, 1)
+        + gaussian(x, 6.5, 0.05, 0.7)
+    )
+    phases[2, :] += (
+        gaussian(x, 1, 0.02, 5)
+        + gaussian(x, 4, 0.05, 0.8)
+        + gaussian(x, 5.8, 0.03, 1)
+    )
+    phases[3, :] += (
+        gaussian(x, 1.5, 0.03, 4)
+        + gaussian(x, 6, 0.02, 1)
+        + gaussian(x, 7.5, 0.04, 0.8)
+        + gaussian(x, 8.5, 0.04, 0.4)
+    )
+
+    return phases + np.random.normal(0, 0.1, phases.shape) ** 2
 
 
 def _get_1d_phase_fractions(

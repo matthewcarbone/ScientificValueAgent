@@ -203,9 +203,14 @@ def _get_1d_phase_fractions(
 
     Returns
     -------
-    _type_
-        _description_
+    np.array
+        Array of phase weights for all X points. Shape is (4, X.shape[0])
     """
+
+    if len(X.shape) == 2 and X.shape[1] > 1:
+        raise ValueError(f"X shape {X.shape} should be 1d, or (n, 1).")
+
+    X = np.array(X)  # Type enforcement
 
     weights = np.zeros((4, X.shape[0]))
     weights[0, :] += X < b_start  # Pure A
@@ -243,3 +248,32 @@ def truth_1d_phase(X):
     phases = _get_1d_phase_data()
     weights = _get_1d_phase_fractions(X)
     return (phases.T @ weights).T
+
+
+def residual_1d_phase(X: np.array):
+    """Get residuals of what is known from the sampled locations in
+    comparison to the whole phase space. This makes an assumption that a good
+    scientist could work out the phase fractions from the patterns provided
+    and linearly interpolate those fractions to fill out all of phase space.
+    In the high sample limit this mean squared error will tend toward zero.
+
+    The highest drivers of this error will be poorly sampled regions of transition.
+
+    Parameters
+    ----------
+    X : np.array
+        1-d array of all data points queried by the agent.
+
+    Returns
+    -------
+    float
+        Mean squared residual error from interpolating knoledge of space.
+    """
+    from scipy import interpolate
+
+    known_weights = _get_1d_phase_fractions(X)
+    linspace = np.linspace(0, 100, 100_000)
+    true_weights = _get_1d_phase_fractions(linspace)
+    f = interpolate(X, known_weights)
+    interpolated_weights = f(linspace)
+    return np.mean((true_weights - interpolated_weights) ** 2)

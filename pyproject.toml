@@ -15,3 +15,29 @@ exclude = '''
   | docs/source/conf.py
 )/
 '''
+
+dependencies = [
+    "dunamai",
+    "numpy",
+    "pandas",
+    "scipy",
+    "sklearn",
+    "tqdm",
+    "monty",
+    "torch",
+    "gpytorch==1.9.0",
+    "botorch==0.7.2",
+    "loguru"
+]
+
+[project.optional-dependencies]
+test = [
+    "codecov",
+    "coverage",
+    "flake8",
+    "pytest",
+    "pytest-cov",
+    "black",
+    "nbstripout",
+    "pre-commit",
+]

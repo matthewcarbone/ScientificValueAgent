@@ -3,6 +3,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy import interpolate
 from sklearn.neighbors import KNeighborsRegressor
 
 
@@ -85,7 +86,8 @@ def mu_Gaussians(p, E=np.linspace(-1, 1, 100), x0=0.5, sd=0.05):
 
 
 def phase_1_sine_on_2d_raster(x, y, x0=0.5, a=30.0):
-    """Takes the y-distance between a sigmoid function and the provided point."""
+    """Takes the y-distance between a sigmoid function and the provided
+    point."""
 
     distance = y - _sine(x)
     return sigmoid(distance, x0, a)
@@ -227,6 +229,7 @@ def _get_1d_phase_fractions(
         raise ValueError(f"X shape {X.shape} should be 1d, or (n, 1).")
 
     X = np.array(X)  # Type enforcement
+    X = X.squeeze()
 
     weights = np.zeros((4, X.shape[0]))
     weights[0, :] += X < b_start  # Pure A
@@ -273,7 +276,8 @@ def residual_1d_phase(X: np.array):
     and linearly interpolate those fractions to fill out all of phase space.
     In the high sample limit this mean squared error will tend toward zero.
 
-    The highest drivers of this error will be poorly sampled regions of transition.
+    The highest drivers of this error will be poorly sampled regions of
+    transition.
 
     Parameters
     ----------
@@ -285,8 +289,8 @@ def residual_1d_phase(X: np.array):
     float
         Mean squared residual error from interpolating knoledge of space.
     """
-    from scipy import interpolate
 
+    X = X.squeeze()
     known_weights = _get_1d_phase_fractions(X)
     linspace = np.linspace(0, 100, 100_000)
     true_weights = _get_1d_phase_fractions(linspace)

@@ -232,10 +232,10 @@ def _get_1d_phase_fractions(
     X = X.squeeze()
 
     weights = np.zeros((4, X.shape[0]))
-    weights[0, :] += X < b_start  # Pure A
-    weights[1, :] += (a_stop < X) & (X < c_start)  # Pure B
-    weights[2, :] += (b_stop < X) & (X < c_stop - 1)  # Pure C
-    weights[3, :] += X > c_stop + 1  # Pure D
+    weights[0, :] += X <= b_start  # Pure A
+    weights[1, :] += (a_stop <= X) & (X <= c_start)  # Pure B
+    weights[2, :] += (b_stop <= X) & (X <= c_stop - 1)  # Pure C
+    weights[3, :] += X >= c_stop + 1  # Pure D
 
     # A+B Linear
     weights[0, :] += ((X < a_stop) & (X > b_start)) * (

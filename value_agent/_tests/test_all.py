@@ -8,7 +8,13 @@ from value_agent.experiments import execute
 
 @pytest.mark.parametrize(
     "yaml_file",
-    ["xrd_1d_asymmetric_vf.yaml"],
+    [
+        "job_xrd_1d_asymmetric_vf.yaml",
+        "job_sine_2d_asymmetric_vf.yaml",
+        "job_xrd4phase_2d_symmetric_vf.yaml",
+        "job_xrd4phase_2d_asymmetric_vf.yaml",
+        "job_sine_2d_symmetric_vf.yaml",
+    ],
 )
 def test_run(yaml_file):
     yaml_file = Path("value_agent") / "_tests" / yaml_file

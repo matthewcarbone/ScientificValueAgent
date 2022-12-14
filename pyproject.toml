@@ -45,7 +45,7 @@ dependencies = [
     "numpy",
     "pandas",
     "scipy",
-    "sklearn",
+    "scikit-learn",
     "tqdm",
     "monty",
     "torch",

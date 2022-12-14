@@ -1,5 +1,6 @@
 from functools import cache
 from pathlib import Path
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -55,7 +56,10 @@ def get_phase_plot_info(truth, **kwargs):
 
 
 def sigmoid(x, x0, a):
-    return 1.0 / (1.0 + np.exp(-a * (x - x0)))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        v = 1.0 / (1.0 + np.exp(-a * (x - x0)))
+    return v
 
 
 def _sine(x):

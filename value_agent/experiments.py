@@ -13,6 +13,7 @@ from scipy.spatial import distance_matrix
 import torch
 from tqdm import tqdm
 
+from value_agent import __version__
 from value_agent.utils import get_function_from_signature
 
 # Used as a submodule
@@ -569,7 +570,7 @@ def run_experiments(list_of_experiments, **kwargs):
 
 
 def execute(params):
-    # print(f"Value Agent version {__version__}")
+    print(f"Value Agent version {__version__}")
     exps = get_experiments(params)
     print("Running", len(exps), "experiments")
     run_experiments(exps, **params["experiment_run_kwargs"])

@@ -16,6 +16,30 @@ exclude = '''
 )/
 '''
 
+[project]
+name = "ValueAgent"
+authors = [
+    {"name" = "Matthew R. Carbone", "email" = "mcarbone@bnl.gov"},
+    {"name" = "Phillip M. Maffettone", "email" = "pmaffetto@bnl.gov"},
+]
+maintainers = [
+    {"name" = "Matthew R. Carbone", "email" = "mcarbone@bnl.gov"}
+]
+description = "The Scientific Value Agent"
+readme = "README.rst"
+requires-python = ">=3.9"
+license = {"file" = "LICENSE"}
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+]
 dependencies = [
     "dunamai",
     "numpy",

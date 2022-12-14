@@ -157,6 +157,7 @@ class Data(MSONable):
         if how == "random":
             np.random.seed(seed)
             X = np.random.random(size=(points_per_dimension, ndim))
+            X = (xmax - xmin) * X + xmin
         elif how == "grid":
             xgrid = np.linspace(xmin, xmax, points_per_dimension + 2)
             xgrid = xgrid[1:-1]

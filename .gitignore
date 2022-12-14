@@ -1,5 +1,6 @@
 *.yaml
 !example_jobs.yaml
+!.pre-commit-config.yaml
 *.yml
 *.xlsx
 results/

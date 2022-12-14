@@ -22,10 +22,10 @@ def get_experiments(params):
         how=how,
         truth_kwargs=params.get("truth_function_kwargs", dict()),
         value_kwargs=params.get("value_function_kwargs", dict()),
-        xmin=0.0,
-        xmax=1.0,
-        points_per_dimension=3,
-        ndim=2,
+        xmin=params.get("xmin", 0.0),
+        xmax=params.get("xmax", 1.0),
+        points_per_dimension=params.get("points_per_dimension", 3),
+        ndim=params.get("ndim", 2),
         n_raster=params.get("n_raster", None),
     )
 
@@ -75,9 +75,7 @@ def get_experiments(params):
 
             coordinates_kwargs = coordinates_fixed_kwargs.copy()
             coordinates_kwargs["seed"] = cseed
-            d0 = experiments.Data.from_initial_conditions(
-                **coordinates_kwargs
-            )
+            d0 = experiments.Data.from_initial_conditions(**coordinates_kwargs)
 
             exp = experiments.Experiment(data=d0, **experiment_kwargs)
             list_of_experiments.append(exp)
@@ -87,9 +85,8 @@ def get_experiments(params):
     return list_of_experiments
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     params = yaml.safe_load(open("jobs.yaml", "r"))
     exps = get_experiments(params)
     print("Running", len(exps), "experiments")
     experiments.run_experiments(exps, n_jobs=params["n_multiprocessing_jobs"])
-    

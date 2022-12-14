@@ -4,6 +4,10 @@
 n_full_grid: 100
 n_raster: null
 n_multiprocessing_jobs: 12
+xmin: 0.0
+xmax: 1.0
+points_per_dimension: 3
+ndim: 2
 
 value_function_signature: "value_agent.value:symmetric_value_function"
 value_function_kwargs:

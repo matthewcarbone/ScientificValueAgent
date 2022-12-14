@@ -1,10 +1,6 @@
 # Note that this file should be named jobs.yaml and inside the directory in
 # which the results should be saved.
 
-n_full_grid: 100
-n_raster: null
-n_multiprocessing_jobs: 12
-
 value_function_signature: "value_agent.value:value_function"
 value_function_kwargs:
   sd: null
@@ -13,6 +9,22 @@ value_function_kwargs:
 truth_function_signature: "value_agent.truth:truth_4phase"
 
 how: "random"
+
+from_initial_conditions_kwargs:
+  xmin: 0.0
+  xmax: 1.0
+  points_per_dimension: 3
+  ndim: 2
+  n_raster: null
+
+experiment_fixed_kwargs:
+  points_per_dimension_full_grid: 100
+
+experiment_run_kwargs:
+  n_multiprocessing_jobs: 4
+  n_experiments: 40
+  save_every: 10
+
 
 jobs:
   - aqf: "Random"
@@ -32,4 +44,4 @@ jobs:
       beta: 100
 
 seed: 123
-total_jobs: 900
+total_jobs: 2

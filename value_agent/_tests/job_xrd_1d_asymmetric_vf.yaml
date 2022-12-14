@@ -18,7 +18,7 @@ from_initial_conditions_kwargs:
   n_raster: null
 
 experiment_fixed_kwargs:
-  points_per_dimension_full_grid: 100
+  points_per_dimension_full_grid: 300
 
 experiment_run_kwargs:
   n_multiprocessing_jobs: 4

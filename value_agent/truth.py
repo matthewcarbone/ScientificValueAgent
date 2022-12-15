@@ -4,7 +4,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
-from scipy import interpolate
+from scipy.interpolate import interp1d
 from sklearn.neighbors import KNeighborsRegressor
 
 
@@ -294,10 +294,15 @@ def residual_1d_phase(X: np.array):
         Mean squared residual error from interpolating knoledge of space.
     """
 
-    X = X.squeeze()
+    X = np.unique(X.squeeze())
     known_weights = _get_1d_phase_fractions(X)
     linspace = np.linspace(0, 100, 100_000)
     true_weights = _get_1d_phase_fractions(linspace)
-    f = interpolate(X, known_weights)
+    f = interp1d(
+        X,
+        known_weights,
+        bounds_error=False,
+        fill_value=(known_weights[:, 0], known_weights[:, -1]),
+    )
     interpolated_weights = f(linspace)
     return np.mean((true_weights - interpolated_weights) ** 2)

@@ -273,7 +273,22 @@ def truth_1d_phase(X):
     return (phases.T @ weights).T
 
 
-def residual_1d_phase(X: np.array):
+def _residual_1d_phase_get_weights(X):
+    X = np.unique(X.squeeze())
+    known_weights = _get_1d_phase_fractions(X)
+    linspace = np.linspace(0, 100, 100_000)
+    true_weights = _get_1d_phase_fractions(linspace)
+    f = interp1d(
+        X,
+        known_weights,
+        bounds_error=False,
+        fill_value=(known_weights[:, 0], known_weights[:, -1]),
+    )
+    interpolated_weights = f(linspace)
+    return true_weights, interpolated_weights
+
+
+def residual_1d_phase_mse(X):
     """Get residuals of what is known from the sampled locations in
     comparison to the whole phase space. This makes an assumption that a good
     scientist could work out the phase fractions from the patterns provided
@@ -294,15 +309,25 @@ def residual_1d_phase(X: np.array):
         Mean squared residual error from interpolating knoledge of space.
     """
 
-    X = np.unique(X.squeeze())
-    known_weights = _get_1d_phase_fractions(X)
-    linspace = np.linspace(0, 100, 100_000)
-    true_weights = _get_1d_phase_fractions(linspace)
-    f = interp1d(
-        X,
-        known_weights,
-        bounds_error=False,
-        fill_value=(known_weights[:, 0], known_weights[:, -1]),
-    )
-    interpolated_weights = f(linspace)
+    true_weights, interpolated_weights = _residual_1d_phase_get_weights(X)
     return np.mean((true_weights - interpolated_weights) ** 2)
+
+
+def residual_1d_phase_relative_mae(X):
+    """Similar to ``residual_1d_phase_mse`` but returns the relative mean
+    absolute deviation relative to the ground truth (the ``true_weights``).
+
+    Parameters
+    ----------
+    X : np.array
+        1-d array of all data points queried by the agent.
+
+    Returns
+    -------
+    float
+        Relative mean absolute deviation from interpolating knoledge of space.
+    """
+
+    true_weights, interpolated_weights = _residual_1d_phase_get_weights(X)
+    d = true_weights + 1e-8
+    return np.mean(np.abs(true_weights - interpolated_weights) / d)

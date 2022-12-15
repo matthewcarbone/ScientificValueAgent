@@ -11,8 +11,6 @@ from value_agent.experiments import execute
     [
         "job_xrd_1d_asymmetric_vf.yaml",
         "job_sine_2d_asymmetric_vf.yaml",
-        "job_xrd4phase_2d_symmetric_vf.yaml",
-        "job_xrd4phase_2d_asymmetric_vf.yaml",
         "job_sine_2d_symmetric_vf.yaml",
     ],
 )

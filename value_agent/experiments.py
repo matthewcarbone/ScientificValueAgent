@@ -502,6 +502,8 @@ def get_experiments(params):
 
     value_signature = params["value_function_signature"]
     truth_signature = params["truth_function_signature"]
+    value_name = value_signature.split(":")[1]
+    truth_name = truth_signature.split(":")[1]
 
     value_function = get_function_from_signature(value_signature)
     truth_function = get_function_from_signature(truth_signature)
@@ -552,7 +554,7 @@ def get_experiments(params):
 
         for (cseed, eseed) in zip(coords_seeds, exp_seeds):
 
-            name = f"{aqf_name}-seed-{cseed}-{eseed}"
+            name = f"{value_name}-{truth_name}-{aqf_name}-{cseed}-{eseed}"
 
             experiment_kwargs = experiment_fixed_kwargs.copy()
             experiment_kwargs["aqf"] = aqf

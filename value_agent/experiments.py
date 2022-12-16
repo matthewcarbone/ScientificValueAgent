@@ -322,6 +322,10 @@ class Experiment(MSONable):
         self._name = xx
 
     @property
+    def recorded_at(self):
+        return self._recorded_at
+
+    @property
     def recorded_X(self):
         return [self._data.X[:ii, :] for ii in self._recorded_at]
 
@@ -350,7 +354,6 @@ class Experiment(MSONable):
         aqf="MaxVar",
         aqf_kwargs=dict(),
         optimize_acqf_kwargs={"q": 1, "num_restarts": 5, "raw_samples": 20},
-        points_per_dimension_full_grid=100,
         experiment_seed=123,
         recorded_at=[],
         predictions=[],
@@ -363,7 +366,6 @@ class Experiment(MSONable):
         self._aqf_kwargs = aqf_kwargs
         self._optimize_acqf_kwargs = optimize_acqf_kwargs
         self._init_bounds()
-        self._points_per_dimension_full_grid = points_per_dimension_full_grid
         self._experiment_seed = experiment_seed
         self._recorded_at = recorded_at
         self._predictions = predictions
@@ -373,19 +375,34 @@ class Experiment(MSONable):
 
     def run(
         self,
+        save_at,
         pbar=False,
         return_self=False,
-        n_experiments=240,
-        save_every=40,
         production_mode=True,
         print_at_end=True,
+        points_per_dimension_full_grid=100,
     ):
         """Runs the experiment.
 
         Parameters
         ----------
+        save_at : array_like
+            The points at which to record results.
         pbar : bool, optional
             If True, enables the progress bar when running.
+        return_self : bool, optional
+            Description
+        n_experiments : int, optional
+            Description
+        production_mode : bool, optional
+            Description
+        print_at_end : bool, optional
+            Description
+        points_per_dimension_full_grid : int, optional
+            If None, then we skip the entire step of predicting the value
+            function on a dense grid. This can save a lot of space if this
+            quantity is not of interest (and given the value function is just
+            an auxiliary quantity, it usually is not).
         """
 
         path = None
@@ -417,13 +434,15 @@ class Experiment(MSONable):
             np.random.seed(self._experiment_seed)
             torch.manual_seed(self._experiment_seed)
 
+        n_experiments = save_at[-1] + 1
+
         with logging_mode(**k):
             for ii in tqdm(range(n_experiments), disable=not pbar):
 
                 n_dat = self._data.N
 
                 if self._aqf == "Random":
-                    if n_dat % save_every == 0 or ii == 0:
+                    if n_dat in save_at or ii == 0:
                         gp = EasySingleTaskGPRegressor(
                             train_x=self._data.X, train_y=self._data.Y
                         )
@@ -451,16 +470,17 @@ class Experiment(MSONable):
                         next_point, self._data.X, self._data.valid_X
                     )
 
-                if n_dat % save_every == 0 or ii == 0:
-                    _N = self._points_per_dimension_full_grid
-                    grid = self._data.get_full_grid(_N)
-                    preds = gp.predict(grid=grid)
-                    preds.pop("posterior")
-                    preds.pop("std")
-                    preds.pop("mean+2std")
-                    preds.pop("mean-2std")
+                if n_dat in save_at or ii == 0:
+                    if points_per_dimension_full_grid is not None:
+                        _N = points_per_dimension_full_grid
+                        grid = self._data.get_full_grid(_N)
+                        preds = gp.predict(grid=grid)
+                        preds.pop("posterior")
+                        preds.pop("std")
+                        preds.pop("mean+2std")
+                        preds.pop("mean-2std")
+                        self._predictions.append(preds)
                     self._recorded_at.append(n_dat)
-                    self._predictions.append(preds)
                     p = str(gp._get_training_debug_information())
                     self._model_parameters.append(p)
 
@@ -559,6 +579,27 @@ def run_experiments(list_of_experiments, **kwargs):
     except KeyError:
         warn("n_multiprocessing_jobs not set, setting to 1")
         n_jobs = 1
+
+    try:
+        N_total = kwargs.pop("N_total")
+        N_save = kwargs.pop("N_save")
+        log_scale_save = kwargs.pop("log_scale_save")
+    except KeyError:
+        warn(
+            "Either of N_total, N_save or log_scale_save were not provided. "
+            "Setting defaults of N_total=100, N_save=10, log_scale_save=False"
+        )
+        N_total = 100
+        N_save = 10
+        log_scale_save = False
+
+    if log_scale_save:
+        n0 = np.log10(N_total)
+        save_at = np.unique(np.logspace(0, n0, N_save).astype(int))
+    else:
+        save_at = np.unique(np.linspace(1, N_total, N_save).astype(int))
+
+    kwargs["save_at"] = save_at
 
     def _execute(exp):
         exp = deepcopy(exp)

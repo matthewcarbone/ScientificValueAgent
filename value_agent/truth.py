@@ -1,6 +1,6 @@
+import warnings
 from functools import cache
 from pathlib import Path
-import warnings
 
 import numpy as np
 import pandas as pd
@@ -316,7 +316,7 @@ def residual_1d_phase_mse(X):
 def residual_1d_phase_relative_mae(X):
     """Similar to ``residual_1d_phase_mse`` but returns the relative mean
     absolute deviation relative to the ground truth (the ``true_weights``).
-    This is a common metric in the crystallography community and known as 
+    This is a common metric in the crystallography community and known as
     Profile Residual (Rp).
      https://en.wikipedia.org/wiki/Rietveld_refinement#Figures_of_merit
 
@@ -332,5 +332,5 @@ def residual_1d_phase_relative_mae(X):
     """
 
     true_weights, interpolated_weights = _residual_1d_phase_get_weights(X)
-    d = true_weights + 1e-8
+    d = np.sum(true_weights, axis=-1, keepdims=True)
     return np.mean(np.abs(true_weights - interpolated_weights) / d)

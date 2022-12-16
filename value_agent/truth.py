@@ -316,6 +316,9 @@ def residual_1d_phase_mse(X):
 def residual_1d_phase_relative_mae(X):
     """Similar to ``residual_1d_phase_mse`` but returns the relative mean
     absolute deviation relative to the ground truth (the ``true_weights``).
+    This is a common metric in the crystallography community and known as 
+    Profile Residual (Rp).
+     https://en.wikipedia.org/wiki/Rietveld_refinement#Figures_of_merit
 
     Parameters
     ----------

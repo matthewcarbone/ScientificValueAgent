@@ -3,7 +3,7 @@
 
 value_function_signature: "value_agent.value:symmetric_value_function"
 
-truth_function_signature: "value_agent.truth:truth_sine2phase"
+truth_function_signature: "value_agent.truth.sine2phase:truth_sine2phase"
 
 how: "random"
 

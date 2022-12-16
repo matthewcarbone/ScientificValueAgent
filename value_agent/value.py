@@ -7,7 +7,7 @@ import numpy as np
 from scipy.spatial import distance_matrix
 
 
-def value_function(X, Y, sd=None, multiplier=1.0):
+def default_asymmetric_value_function(X, Y, sd=None, multiplier=1.0):
     """The value of two datasets, X and Y. Both X and Y must have the same
     number of rows. The returned result is a value of value for each of the
     data points.

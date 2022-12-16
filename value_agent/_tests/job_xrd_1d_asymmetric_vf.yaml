@@ -1,12 +1,12 @@
 # Note that this file should be named jobs.yaml and inside the directory in
 # which the results should be saved.
 
-value_function_signature: "value_agent.value:value_function"
+value_function_signature: "value_agent.value:default_asymmetric_value_function"
 value_function_kwargs:
   sd: null
   multiplier: 1.0
 
-truth_function_signature: "value_agent.truth:truth_1d_phase"
+truth_function_signature: "value_agent.truth.xrd1dim:truth_xrd1dim"
 
 how: "random"
 

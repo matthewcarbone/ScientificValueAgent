@@ -4,7 +4,6 @@ exclude =
     __pycache__,
     build,
     dist,
-    lightshow/defaults.py,
     docs/source/conf.py
 max-line-length = 80
 show-source = True

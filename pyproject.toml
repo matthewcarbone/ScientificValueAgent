@@ -1,5 +1,5 @@
 [project]
-name = "ValueAgent"
+name = "ScientificValueAgent"
 authors = [
     {"name" = "Matthew R. Carbone", "email" = "mcarbone@bnl.gov"},
     {"name" = "Phillip M. Maffettone", "email" = "pmaffetto@bnl.gov"},
@@ -49,7 +49,7 @@ test = [
 ]
 
 [too.coverage.run]
-omit = ["value_agent/EasyBO/*"]
+omit = ["sva/EasyBO/*"]
 
 [tool.black]
 line-length = 79

@@ -47,7 +47,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: rickstaa/action-black@v1
         with:
-          black_args: "value_agent/ --check"
+          black_args: "sva/ --check"
           fail_on_error: "true"
 
   flake8_py3:

@@ -13,8 +13,8 @@ from scipy.spatial import distance_matrix
 import torch
 from tqdm import tqdm
 
-from value_agent import __version__
-from value_agent.utils import get_function_from_signature
+from sva import __version__
+from sva.utils import get_function_from_signature
 
 # Used as a submodule
 easybo_path = str(Path(__file__).absolute().parent / "EasyBO")

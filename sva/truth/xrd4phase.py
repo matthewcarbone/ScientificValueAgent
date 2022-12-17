@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from value_agent.truth.common import sigmoid
+from sva.truth.common import sigmoid
 
 
 def theta_phase(x, y, x0=1, a=10):

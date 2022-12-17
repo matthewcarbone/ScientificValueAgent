@@ -3,7 +3,7 @@ from functools import cache
 import numpy as np
 from scipy.interpolate import interp1d
 
-from value_agent.truth.common import sigmoid
+from sva.truth.common import sigmoid
 
 
 def gaussian(x, mu, sig, a):

@@ -1,6 +1,6 @@
 import numpy as np
 
-from value_agent.truth.common import sigmoid
+from sva.truth.common import sigmoid
 
 
 def get_2d_grids(

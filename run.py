@@ -1,6 +1,6 @@
 import yaml
 
-from value_agent.experiments import execute
+from sva.experiments import execute
 
 
 if __name__ == "__main__":

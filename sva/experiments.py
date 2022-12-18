@@ -219,6 +219,10 @@ class Data(MSONable):
     def valid_X(self):
         return self._valid_X
 
+    @property
+    def metadata(self):
+        return self._metadata
+
     @lru_cache()
     def get_full_grid(self, n=100):
         xmin = self._metadata["xmin"]
@@ -435,6 +439,8 @@ class Experiment(MSONable):
             torch.manual_seed(self._experiment_seed)
 
         n_experiments = save_at[-1] + 1
+        xmax = self.data.metadata["xmax"]
+        xmin = self.data.metadata["xmin"]
 
         with logging_mode(**k):
             for ii in tqdm(range(n_experiments), disable=not pbar):
@@ -450,6 +456,7 @@ class Experiment(MSONable):
                     next_point = np.random.random(
                         size=(1, self._data.X.shape[1])
                     )
+                    next_point = (xmax - xmin) * next_point + xmin
                 else:
                     gp = EasySingleTaskGPRegressor(
                         train_x=self._data.X, train_y=self._data.Y

@@ -4,6 +4,7 @@
 !.github/workflows/*.yaml
 *.yml
 *.xlsx
+*.csv
 results/
 raw/
 legacy/

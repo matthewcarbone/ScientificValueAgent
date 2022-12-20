@@ -30,4 +30,4 @@ def test_sine2phase():
         return_self=False,
         print_at_end=False,
     )
-    assert sine2phase.points_in_10_percent_range(exp.data.X) == 0.545
+    assert 0.5 < sine2phase.points_in_10_percent_range(exp.data.X) < 0.6

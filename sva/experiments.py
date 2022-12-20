@@ -483,7 +483,6 @@ class Experiment(MSONable):
                         grid = self._data.get_full_grid(_N)
                         preds = gp.predict(grid=grid)
                         preds.pop("posterior")
-                        preds.pop("std")
                         preds.pop("mean+2std")
                         preds.pop("mean-2std")
                         self._predictions.append(preds)

@@ -506,11 +506,12 @@ class Experiment(MSONable):
     def run(
         self,
         max_n_dat,
+        fit_with_Adam=False,
         pbar=False,
         return_self=False,
         print_at_end=True,
         model_kwargs=dict(),
-        fit_gpytorch_mll_kwargs=dict(),
+        fit_kwargs=dict(),
         record_gp_every=0,
         points_per_dimension_full_grid=None,
     ):
@@ -518,30 +519,27 @@ class Experiment(MSONable):
 
         Parameters
         ----------
+        max_n_dat : int
+            Description
+        fit_with_Adam : bool, optional
+            Description
         pbar : bool, optional
             If True, enables the progress bar when running.
         return_self : bool, optional
             Description
         print_at_end : bool, optional
             Description
+        model_kwargs : dict, optional
+            Description
+        fit_kwargs : dict, optional
+            Description
+        record_gp_every : int, optional
+            Description
         points_per_dimension_full_grid : int, optional
             If None, then we skip the entire step of predicting the value
             function on a dense grid. This can save a lot of space if this
             quantity is not of interest (and given the value function is just
             an auxiliary quantity, it usually is not).
-        model_kwargs : TYPE, optional
-            Description
-        fit_gpytorch_mll_kwargs : TYPE, optional
-            Description
-        record_gp_kwargs : None, optional
-            Description
-
-        Deleted Parameters
-        ------------------
-        save_at : array_like
-            The points at which to record results.
-        n_experiments : int, optional
-            Description
         """
 
         if record_gp_every > 0 and points_per_dimension_full_grid is None:
@@ -600,12 +598,33 @@ class Experiment(MSONable):
             )
 
             # Fit the GP
-            self.set_train(gp)
-            mll = gpytorch.mlls.ExactMarginalLogLikelihood(
-                likelihood=gp.likelihood, model=gp
-            )
             with Timer() as timer:
-                fit_gpytorch_mll(mll, **fit_gpytorch_mll_kwargs)
+                if not fit_with_Adam:
+                    mll = gpytorch.mlls.ExactMarginalLogLikelihood(
+                        likelihood=gp.likelihood, model=gp
+                    )
+                    self.set_train(gp)
+                    fit_gpytorch_mll(mll, **fit_kwargs)
+                else:
+                    losses = []
+                    gp.likelihood.noise_covar.register_constraint(
+                        "raw_noise", gpytorch.constraints.GreaterThan(1e-6)
+                    )
+                    mll = gpytorch.mlls.ExactMarginalLogLikelihood(
+                        likelihood=gp.likelihood, model=gp
+                    ).to(train_X)
+                    self.set_train(gp)
+                    lr = fit_kwargs.get("lr", 0.05)
+                    optimizer = torch.optim.Adam(gp.parameters(), lr=lr)
+                    n_train = fit_kwargs.get("n_train", 200)
+                    for _ in range(n_train):
+                        optimizer.zero_grad()
+                        output = gp(train_X)
+                        loss = -mll(output, gp.train_targets)
+                        loss.backward()
+                        losses.append(loss.item())
+                        optimizer.step()
+                    log["losses"] = losses
             log["hyperparameters"] = self.get_model_hyperparameters(gp)
             log["dt"] = timer.dt
 

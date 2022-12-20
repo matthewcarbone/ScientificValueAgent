@@ -1,27 +1,44 @@
 from copy import deepcopy
-from functools import lru_cache
+from functools import cache
 from itertools import product
 from joblib import delayed, Parallel
 import json
 from pathlib import Path
-import sys
+from time import perf_counter
 from warnings import warn
 
+from botorch.fit import fit_gpytorch_mll
+from botorch.models.transforms.input import Normalize
+from botorch.models.transforms.outcome import Standardize
+from botorch.models import SingleTaskGP
+from botorch.optim import optimize_acqf
+import gpytorch
 import numpy as np
 from monty.json import MSONable
 from scipy.spatial import distance_matrix
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import torch
 from tqdm import tqdm
 
 from sva import __version__
 from sva.utils import get_function_from_signature
 
-# Used as a submodule
-easybo_path = str(Path(__file__).absolute().parent / "EasyBO")
-sys.path.append(easybo_path)
-from easybo.gp import EasySingleTaskGPRegressor  # noqa
-from easybo.bo import ask  # noqa
-from easybo.logger import logging_mode  # noqa
+
+torch.set_default_dtype(torch.float64)
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+class Timer:
+    def __enter__(self):
+        self._time = perf_counter()
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._time = perf_counter() - self._time
+
+    @property
+    def dt(self):
+        return self._time
 
 
 def next_closest_raster_scan_point(
@@ -102,9 +119,9 @@ def oracle(X, truth, value, truth_kwargs=dict(), value_kwargs=dict()):
     return value(X, truth(X, **truth_kwargs), **value_kwargs)
 
 
-def get_valid_X(xmin, xmax, n_raster, ndim):
-    valid_X = np.linspace(xmin, xmax, n_raster)
-    gen = product(*[valid_X for _ in range(ndim)])
+def get_allowed_X(xmin, xmax, n_raster, ndim):
+    allowed_X = np.linspace(xmin, xmax, n_raster)
+    gen = product(*[allowed_X for _ in range(ndim)])
     return np.array([xx for xx in gen])
 
 
@@ -154,9 +171,9 @@ class Data(MSONable):
             that are "allowed" to be sampled in any future experiment.
         """
 
-        valid_X = None
+        allowed_X = None
         if n_raster is not None:
-            valid_X = get_valid_X(xmin, xmax, n_raster, ndim)
+            allowed_X = get_allowed_X(xmin, xmax, n_raster, ndim)
 
         if how == "random":
             np.random.seed(seed)
@@ -169,9 +186,9 @@ class Data(MSONable):
         else:
             raise ValueError(f"Unknown initial condition type {how}")
 
-        if valid_X is not None:
+        if allowed_X is not None:
             observed = np.ones(shape=(1, ndim)) * np.inf  # Dummy
-            X = next_closest_raster_scan_point(X, observed, valid_X)
+            X = next_closest_raster_scan_point(X, observed, allowed_X)
 
         Y = np.array(
             oracle(
@@ -182,7 +199,6 @@ class Data(MSONable):
                 value_kwargs=value_kwargs,
             )
         ).reshape(-1, 1)
-        metadata = dict(xmin=xmin, xmax=xmax, seed=seed)
         return cls(
             truth,
             value,
@@ -190,8 +206,10 @@ class Data(MSONable):
             value_kwargs,
             X=X,
             Y=Y,
-            valid_X=valid_X,
-            metadata=metadata,
+            xmin=xmin,
+            xmax=xmax,
+            seed=seed,
+            allowed_X=allowed_X,
         )
 
     @property
@@ -199,8 +217,18 @@ class Data(MSONable):
         return self._X
 
     @property
+    def X_MinMax_scaled(self):
+        scaler = MinMaxScaler()
+        return scaler.fit_transform(self.X)
+
+    @property
     def Y(self):
         return self._Y
+
+    @property
+    def Y_Standard_scaled(self):
+        scaler = StandardScaler()
+        return scaler.fit_transform(self.Y)
 
     @property
     def X0(self):
@@ -216,17 +244,25 @@ class Data(MSONable):
         return self._X.shape[0]
 
     @property
-    def valid_X(self):
-        return self._valid_X
+    def xmin(self):
+        return self._xmin
 
     @property
-    def metadata(self):
-        return self._metadata
+    def xmax(self):
+        return self._xmax
 
-    @lru_cache()
+    @property
+    def seed(self):
+        return self._seed
+
+    @property
+    def allowed_X(self):
+        return self._allowed_X
+
+    @cache
     def get_full_grid(self, n=100):
-        xmin = self._metadata["xmin"]
-        xmax = self._metadata["xmax"]
+        xmin = self.xmin
+        xmax = self.xmax
 
         if isinstance(xmin, (float, int)) and isinstance(xmax, (float, int)):
             grid = np.linspace(xmin, xmax, n)
@@ -247,9 +283,11 @@ class Data(MSONable):
         value_kwargs,
         X,
         Y,
+        xmin,
+        xmax,
+        seed,
         n_initial_points=None,
-        valid_X=None,
-        metadata=dict(),
+        allowed_X=None,
     ):
         self._truth = truth
         self._value = value
@@ -257,13 +295,15 @@ class Data(MSONable):
         self._value_kwargs = value_kwargs
         self._X = X
         self._Y = Y
+        self._xmin = xmin
+        self._xmax = xmax
+        self._seed = seed
         if n_initial_points is None:
             self._n_initial_points = self.X.shape[0]
         else:
             self._n_initial_points = n_initial_points
         assert self.Y.shape[0] == self.X.shape[0]
-        self._valid_X = valid_X
-        self._metadata = metadata
+        self._allowed_X = allowed_X
 
     def append(self, X):
         X = X.reshape(-1, self._X.shape[1])
@@ -302,7 +342,6 @@ class UVData(Data):
         Y = np.array(
             oracle(X, truth, value, truth_kwargs, value_kwargs)
         ).reshape(-1, 1)
-        metadata = dict(xmin=xmin, xmax=xmax, seed=seed)
         return cls(
             truth,
             value,
@@ -310,12 +349,16 @@ class UVData(Data):
             value_kwargs,
             X=X,
             Y=Y,
-            valid_X=None,
-            metadata=metadata,
+            xmin=xmin,
+            xmax=xmax,
+            seed=seed,
+            allowed_X=None,
         )
 
 
 class Experiment(MSONable):
+    """Summary"""
+
     @property
     def name(self):
         return self._name
@@ -341,9 +384,12 @@ class Experiment(MSONable):
     def data(self):
         return self._data
 
+    def get_acquisition_function(self):
+        return get_function_from_signature(self._acqf_signature)
+
     def _init_bounds(self):
-        xmin = self._data._metadata["xmin"]
-        xmax = self._data._metadata["xmax"]
+        xmin = self.data.xmin
+        xmax = self.data.xmax
 
         if isinstance(xmin, (int, float)) and isinstance(xmax, (int, float)):
             self._bounds = [[xmin, xmax] for _ in range(self._data.X.shape[1])]
@@ -352,53 +398,129 @@ class Experiment(MSONable):
             assert len(xmin) == len(xmax)
             self._bounds = [[x0, xf] for x0, xf in zip(xmin, xmax)]
 
+    def _set_path(self):
+        self._path = None
+        if self._name is not None:
+            self._path = str(Path(self._name + ".json"))
+
+    def _check_path_exists(self):
+        if self._path is not None:
+            if Path(self._path).exists():
+                return True
+        return False
+
+    def _seed_numpy_torch_rng(self):
+        if self._experiment_seed is not None:
+            np.random.seed(self._experiment_seed)
+            torch.manual_seed(self._experiment_seed)
+
     def __init__(
         self,
         data,
-        aqf="MaxVar",
-        aqf_kwargs=dict(),
+        acqf_signature,
+        acqf_kwargs=dict(),
+        kernel_signature="gpytorch.kernels:MaternKernel",
+        kernel_kwargs={"nu": 2.5},
         optimize_acqf_kwargs={"q": 1, "num_restarts": 5, "raw_samples": 20},
         experiment_seed=123,
-        recorded_at=[],
-        predictions=[],
-        run_parameters=[],
-        model_parameters=[],
+        record=[],
+        scale_inputs_MinMax=True,
+        scale_outputs_Standard=True,
         name=None,
+        path=None,
     ):
         self._data = data
-        self._aqf = aqf
-        self._aqf_kwargs = aqf_kwargs
+        self._acqf_signature = acqf_signature
+        self._acqf_kwargs = acqf_kwargs
+        self._kernel_signature = kernel_signature
+        self._kernel_kwargs = kernel_kwargs
         self._optimize_acqf_kwargs = optimize_acqf_kwargs
         self._init_bounds()
         self._experiment_seed = experiment_seed
-        self._recorded_at = recorded_at
-        self._predictions = predictions
-        self._run_parameters = run_parameters
-        self._model_parameters = model_parameters
+        self._record = record
+        self._scale_inputs_MinMax = scale_inputs_MinMax
+        self._scale_outputs_Standard = scale_outputs_Standard
         self._name = name
+        self._set_path()
+
+    def _get_train_X(self):
+        return torch.tensor(self.data.X.copy()).to(DEVICE)
+
+    def _get_train_Y(self):
+        return torch.tensor(self.data.Y.copy()).to(DEVICE)
+
+    def _get_transforms(self, d, m):
+        input_transform = (
+            Normalize(d, transform_on_eval=True)
+            if self._scale_inputs_MinMax
+            else None
+        )
+        output_transform = (
+            Standardize(m) if self._scale_outputs_Standard else None
+        )
+        return input_transform, output_transform
+
+    @staticmethod
+    def get_model_hyperparameters(gp):
+        d = dict()
+        for p in gp.named_parameters():
+            p0 = str(p[0])
+            p1 = p[1].detach().numpy()
+            d[p0] = p1
+        return d
+
+    @staticmethod
+    def set_train(gp):
+        gp.train()
+        gp.likelihood.train()
+
+    @staticmethod
+    def set_eval(gp):
+        gp.eval()
+        gp.likelihood.eval()
+
+    def _adjust_kwargs_for_EI(self, train_Y):
+        kwargs = self._acqf_kwargs.copy()
+        if "ExpectedImprovement" in self._acqf_signature:
+            kwargs["best_f"] = train_Y.max().item()
+        return kwargs
+
+    def _ask(self, gp, acquisition_function_kwargs):
+        _acqf = self.get_acquisition_function()
+        acquisition_function = _acqf(gp, **acquisition_function_kwargs)
+        bounds = torch.tensor(self._bounds).float().reshape(-1, 2).T
+        return optimize_acqf(
+            acquisition_function,
+            bounds=bounds,
+            **self._optimize_acqf_kwargs,
+        )
+
+    def _predict(self, gp, N_grid):
+        grid = torch.tensor(self._data.get_full_grid(N_grid))
+        with torch.no_grad(), gpytorch.settings.fast_pred_var():
+            posterior = gp.posterior(grid, observation_noise=True)
+        mu = posterior.mean.detach().numpy().squeeze()
+        sd = np.sqrt(posterior.variance.detach().numpy().squeeze())
+        return mu, sd
 
     def run(
         self,
-        save_at,
+        max_n_dat,
         pbar=False,
         return_self=False,
-        production_mode=True,
         print_at_end=True,
-        points_per_dimension_full_grid=100,
+        model_kwargs=dict(),
+        fit_gpytorch_mll_kwargs=dict(),
+        record_gp_every=0,
+        points_per_dimension_full_grid=None,
     ):
         """Runs the experiment.
 
         Parameters
         ----------
-        save_at : array_like
-            The points at which to record results.
         pbar : bool, optional
             If True, enables the progress bar when running.
         return_self : bool, optional
-            Description
-        n_experiments : int, optional
-            Description
-        production_mode : bool, optional
             Description
         print_at_end : bool, optional
             Description
@@ -407,97 +529,121 @@ class Experiment(MSONable):
             function on a dense grid. This can save a lot of space if this
             quantity is not of interest (and given the value function is just
             an auxiliary quantity, it usually is not).
+        model_kwargs : TYPE, optional
+            Description
+        fit_gpytorch_mll_kwargs : TYPE, optional
+            Description
+        record_gp_kwargs : None, optional
+            Description
+
+        Deleted Parameters
+        ------------------
+        save_at : array_like
+            The points at which to record results.
+        n_experiments : int, optional
+            Description
         """
 
-        path = None
-        if self._name is not None:
-            path = Path(self._name + ".json")
-            if path.exists():
-                print(str(path), "exists - continuing")
-                return
-            path = str(path)
-
-        k = dict()
-        if production_mode:
-            k = dict(
-                warning=False,
-                error=False,
-                success=False,
-                info=False,
-                debug=False,
+        if record_gp_every > 0 and points_per_dimension_full_grid is None:
+            warn(
+                "record_gp_every > 0 but no points_per_dimension_full_grid "
+                "is set: no GP data will be saved"
             )
 
-        run_parameters = {
-            key: value
-            for key, value in locals().items()
-            if key not in ["pbar", "self", "return_self"]
-        }
-        self._run_parameters.append(run_parameters)
+        self._seed_numpy_torch_rng()
 
-        if self._experiment_seed is not None:
-            np.random.seed(self._experiment_seed)
-            torch.manual_seed(self._experiment_seed)
+        # Get some key objects for the GP and Bayesian Optimization
+        # Underscores indicate that these are actually the objects, not the
+        # initialized values
+        _kernel = get_function_from_signature(self._kernel_signature)
 
-        n_experiments = save_at[-1] + 1
-        xmax = self.data.metadata["xmax"]
-        xmin = self.data.metadata["xmin"]
+        if self._check_path_exists():
+            print(f"{self._path} exists: continuing")
+            return
 
-        with logging_mode(**k):
-            for ii in tqdm(range(n_experiments), disable=not pbar):
+        n_experiments = max_n_dat - self.data.N
 
-                n_dat = self._data.N
+        for ii in tqdm(range(n_experiments), disable=not pbar):
 
-                if self._aqf == "Random":
-                    if n_dat in save_at or ii == 0:
-                        gp = EasySingleTaskGPRegressor(
-                            train_x=self._data.X, train_y=self._data.Y
-                        )
-                        gp.train_()
-                    next_point = np.random.random(
-                        size=(1, self._data.X.shape[1])
-                    )
-                    next_point = (xmax - xmin) * next_point + xmin
-                else:
-                    gp = EasySingleTaskGPRegressor(
-                        train_x=self._data.X, train_y=self._data.Y
-                    )
-                    gp.train_()
-                    next_point = ask(
-                        model=gp.model,
-                        bounds=self._bounds,
-                        acquisition_function=self._aqf,
-                        acquisition_function_kwargs=self._aqf_kwargs
-                        if self._aqf != "EI"
-                        else dict(best_f=np.max(self._data.Y)),
-                        optimize_acqf_kwargs=self._optimize_acqf_kwargs,
-                    )
+            n_dat = self.data.N
 
-                if self._data.valid_X is not None:
-                    next_point = next_closest_raster_scan_point(
-                        next_point, self._data.X, self._data.valid_X
-                    )
+            if n_dat >= max_n_dat:
+                break
 
-                if n_dat in save_at or ii == 0:
-                    if points_per_dimension_full_grid is not None:
-                        _N = points_per_dimension_full_grid
-                        grid = self._data.get_full_grid(_N)
-                        preds = gp.predict(grid=grid)
-                        preds.pop("posterior")
-                        preds.pop("mean+2std")
-                        preds.pop("mean-2std")
-                        self._predictions.append(preds)
-                    self._recorded_at.append(n_dat)
-                    p = str(gp._get_training_debug_information())
-                    self._model_parameters.append(p)
+            log = dict(iteration=ii, N=n_dat)
 
-                self._data.append(next_point)
+            # Get the data, handles copying data.X and data.Y as well as
+            # doing all of the scaling
+            train_X = self._get_train_X()
+            train_Y = self._get_train_Y()
 
-        if path is not None:
-            with open(path, "w") as f:
+            # Transform information
+            d = train_X.shape[1]
+            m = train_Y.shape[1]
+            i_transform, o_transform = self._get_transforms(d, m)
+
+            # Initialize the GP
+            mean_prior = gpytorch.means.ConstantMean()
+            kernel = gpytorch.kernels.ScaleKernel(
+                _kernel(**self._kernel_kwargs)
+            )
+            likelihood = gpytorch.likelihoods.GaussianLikelihood()
+            gp = SingleTaskGP(
+                train_X=train_X,
+                train_Y=train_Y,
+                likelihood=likelihood,
+                mean_module=mean_prior,
+                covar_module=kernel,
+                input_transform=i_transform,
+                outcome_transform=o_transform,
+                **model_kwargs,
+            )
+
+            # Fit the GP
+            self.set_train(gp)
+            mll = gpytorch.mlls.ExactMarginalLogLikelihood(
+                likelihood=gp.likelihood, model=gp
+            )
+            with Timer() as timer:
+                fit_gpytorch_mll(mll, **fit_gpytorch_mll_kwargs)
+            log["hyperparameters"] = self.get_model_hyperparameters(gp)
+            log["dt"] = timer.dt
+
+            # Bayesian Optimization
+            self.set_eval(gp)
+            kwargs = self._adjust_kwargs_for_EI(train_Y)
+            next_point, value = self._ask(gp, kwargs)
+            log["next_point"] = next_point.detach().numpy()
+            log["acquisition_function_value"] = value.detach().numpy()
+
+            if self._data.allowed_X is not None:
+                next_point = next_closest_raster_scan_point(
+                    next_point, self._data.X, self._data.allowed_X
+                )
+
+            # Save GP predictions on a dense grid if specified
+            if record_gp_every == 0:
+                pass
+            elif points_per_dimension_full_grid is not None and (
+                n_dat % record_gp_every == 0
+                or ii == 0
+                or n_dat == max_n_dat - 1
+            ):
+                mu, sd = self._predict(gp, points_per_dimension_full_grid)
+                log["mu"] = mu
+                log["sd"] = sd
+
+            # Ready the next experiment
+            self._data.append(next_point)
+            self._record.append(log)
+
+        if self._path is not None:
+            with open(self._path, "w") as f:
                 json.dump(self.to_json(), f, indent=4)
 
         if print_at_end:
             print(f"Done: {self._name}", flush=True)
+
         if return_self:
             return self
 
@@ -524,7 +670,7 @@ def get_experiments(params):
         **params["from_initial_conditions_kwargs"],
     )
 
-    # Still need to set `aqf`, `aqf_kwargs` and `name`
+    # Still need to set `acqf`, `acqf_kwargs` and `name`
     experiment_fixed_kwargs = dict(
         experiment_seed="set me",
         name=None,
@@ -540,6 +686,7 @@ def get_experiments(params):
         seeds_arr = np.random.choice(range(int(1e6)), size=size, replace=False)
         coords_seeds = seeds_arr[:, 0].tolist()
         exp_seeds = seeds_arr[:, 1].tolist()
+
     else:
         size = params["total_jobs"]
         seeds_arr = np.random.choice(range(int(1e6)), size=size, replace=False)
@@ -549,22 +696,22 @@ def get_experiments(params):
     list_of_experiments = []
 
     for job in params["jobs"]:
-        aqf = job["aqf"]
-        aqf_kwargs = job.get("aqf_kwargs", dict())
-        beta = aqf_kwargs.get("beta")
-        if beta is None:
-            aqf_name = aqf
-        else:
+        acqf_signature = job["acqf_signature"]
+        acqf_kwargs = job.get("acqf_kwargs", dict())
+        beta = acqf_kwargs.get("beta")
+
+        acqf_name = acqf_signature.split(":")[1]
+        if beta is not None:
             beta = int(beta)
-            aqf_name = f"{aqf}{beta}"
+            acqf_name = f"{acqf_name}{beta}"
 
         for (cseed, eseed) in zip(coords_seeds, exp_seeds):
 
-            name = f"{value_name}-{truth_name}-{aqf_name}-{cseed}-{eseed}"
+            name = f"{value_name}-{truth_name}-{acqf_name}-{cseed}-{eseed}"
 
             experiment_kwargs = experiment_fixed_kwargs.copy()
-            experiment_kwargs["aqf"] = aqf
-            experiment_kwargs["aqf_kwargs"] = aqf_kwargs
+            experiment_kwargs["acqf_signature"] = acqf_signature
+            experiment_kwargs["acqf_kwargs"] = acqf_kwargs
             experiment_kwargs["experiment_seed"] = eseed
             experiment_kwargs["name"] = name
 
@@ -587,27 +734,6 @@ def run_experiments(list_of_experiments, **kwargs):
     except KeyError:
         warn("n_multiprocessing_jobs not set, setting to 1")
         n_jobs = 1
-
-    try:
-        N_total = kwargs.pop("N_total")
-        N_save = kwargs.pop("N_save")
-        log_scale_save = kwargs.pop("log_scale_save")
-    except KeyError:
-        warn(
-            "Either of N_total, N_save or log_scale_save were not provided. "
-            "Setting defaults of N_total=100, N_save=10, log_scale_save=False"
-        )
-        N_total = 100
-        N_save = 10
-        log_scale_save = False
-
-    if log_scale_save:
-        n0 = np.log10(N_total)
-        save_at = np.unique(np.logspace(0, n0, N_save).astype(int))
-    else:
-        save_at = np.unique(np.linspace(1, N_total, N_save).astype(int))
-
-    kwargs["save_at"] = save_at
 
     def _execute(exp):
         exp = deepcopy(exp)

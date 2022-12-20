@@ -88,3 +88,26 @@ def phase_1_sine_on_2d_raster(x, y, x0=0.5, a=30.0):
 def truth_sine2phase(X):
     phase_1 = [phase_1_sine_on_2d_raster(*c) for c in X]
     return np.array([mu_Gaussians(p) for p in phase_1])
+
+
+def points_in_10_percent_range(X):
+    """The proportion of points contained in the 10% area specified by two
+    sine functions at 0.5 + 0.25 sin(2 pi x) +/- 0.05.
+
+    Parameters
+    ----------
+    X : numpy.ndarray
+
+    Returns
+    -------
+    float
+    """
+
+    total_points = X.shape[0]
+    x = X[:, 0]
+    y = X[:, 1]
+    y_upper = 0.55 + 0.25 * np.sin(2.0 * np.pi * x)
+    y_lower = 0.45 + 0.25 * np.sin(2.0 * np.pi * x)
+    where = np.where((y < y_upper) & (y > y_lower))[0]
+    L = len(where)
+    return L / total_points

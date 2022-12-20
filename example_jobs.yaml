@@ -18,38 +18,35 @@ from_initial_conditions_kwargs:
   n_raster: null
 
 experiment_fixed_kwargs:
+  kernel_signature: "gpytorch.kernels:MaternKernel"
+  kernel_kwargs:
+    nu: 2.5
   optimize_acqf_kwargs:
     q: 1
     num_restarts: 5
     raw_samples: 20
 
 experiment_run_kwargs:
-  points_per_dimension_full_grid: null
-  n_multiprocessing_jobs: 12
-
-  # The following three keys are used to create the save_at list, which
-  # determines at which increments the experiments are saved
-  N_total: 1000
-  N_save: 100
-  log_scale_save: True
-
+  n_multiprocessing_jobs: 1
+  pbar: True
+  max_n_dat: 200
+  points_per_dimension_full_grid: 100
+  record_gp_every: 2
 
 jobs:
-  - aqf: "Random"
-  - aqf: "MaxVar"
-  - aqf: "EI"
-  - aqf: "UCB"
-    aqf_kwargs:
+  - acqf_signature: "botorch.acquisition:ExpectedImprovement"
+  - acqf_signature: "botorch.acquisition:UpperConfidenceBound"
+    acqf_kwargs:
       beta: 1
-  - aqf: "UCB"
-    aqf_kwargs:
+  - acqf_signature: "botorch.acquisition:UpperConfidenceBound"
+    acqf_kwargs:
       beta: 10
-  - aqf: "UCB"
-    aqf_kwargs:
+  - acqf_signature: "botorch.acquisition:UpperConfidenceBound"
+    acqf_kwargs:
       beta: 20
-  - aqf: "UCB"
-    aqf_kwargs:
+  - acqf_signature: "botorch.acquisition:UpperConfidenceBound"
+    acqf_kwargs:
       beta: 100
 
 seed: 123
-total_jobs: 900
+total_jobs: 1

@@ -540,7 +540,8 @@ class Experiment(MSONable):
         return_self=False,
         print_at_end=True,
         model_kwargs=dict(),
-        fit_kwargs=dict(),
+        fit_via_BoTorch_kwargs=dict(),
+        fit_via_Adam_kwargs=dict(),
         record_gp_every=0,
         points_per_dimension_full_grid=None,
     ):
@@ -631,11 +632,17 @@ class Experiment(MSONable):
             with Timer() as timer:
                 if not fit_with_Adam:
                     try:
-                        self._fit_with_fit_gpytorch_mll(gp, fit_kwargs)
+                        self._fit_with_fit_gpytorch_mll(
+                            gp, fit_via_BoTorch_kwargs
+                        )
                     except ModelFittingError:
-                        losses = self._fit_with_Adam(gp, train_X, fit_kwargs)
+                        losses = self._fit_with_Adam(
+                            gp, train_X, fit_via_Adam_kwargs
+                        )
                 else:
-                    losses = self._fit_with_Adam(gp, train_X, fit_kwargs)
+                    losses = self._fit_with_Adam(
+                        gp, train_X, fit_via_Adam_kwargs
+                    )
             log["losses"] = losses
             log["hyperparameters"] = self.get_model_hyperparameters(gp)
             log["dt"] = timer.dt

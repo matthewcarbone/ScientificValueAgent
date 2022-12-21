@@ -15,7 +15,6 @@ legacy/
 
 results*
 data/
-figures/
 *.ipynb
 *.pyc
 !build_sphinx.sh

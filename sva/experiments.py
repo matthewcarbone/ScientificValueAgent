@@ -7,6 +7,7 @@ from pathlib import Path
 from time import perf_counter
 from warnings import warn
 
+from botorch.exceptions.errors import ModelFittingError
 from botorch.fit import fit_gpytorch_mll
 from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
@@ -485,6 +486,34 @@ class Experiment(MSONable):
             kwargs["best_f"] = train_Y.max().item()
         return kwargs
 
+    def _fit_with_fit_gpytorch_mll(self, gp, fit_kwargs):
+        mll = gpytorch.mlls.ExactMarginalLogLikelihood(
+            likelihood=gp.likelihood, model=gp
+        )
+        self.set_train(gp)
+        fit_gpytorch_mll(mll, **fit_kwargs)
+
+    def _fit_with_Adam(self, gp, train_X, fit_kwargs):
+        losses = []
+        gp.likelihood.noise_covar.register_constraint(
+            "raw_noise", gpytorch.constraints.GreaterThan(1e-6)
+        )
+        mll = gpytorch.mlls.ExactMarginalLogLikelihood(
+            likelihood=gp.likelihood, model=gp
+        ).to(train_X)
+        self.set_train(gp)
+        lr = fit_kwargs.get("lr", 0.05)
+        optimizer = torch.optim.Adam(gp.parameters(), lr=lr)
+        n_train = fit_kwargs.get("n_train", 200)
+        for _ in range(n_train):
+            optimizer.zero_grad()
+            output = gp(train_X)
+            loss = -mll(output, gp.train_targets)
+            loss.backward()
+            losses.append(loss.item())
+            optimizer.step()
+        return losses
+
     def _ask(self, gp, acquisition_function_kwargs):
         _acqf = self.get_acquisition_function()
         acquisition_function = _acqf(gp, **acquisition_function_kwargs)
@@ -598,33 +627,16 @@ class Experiment(MSONable):
             )
 
             # Fit the GP
+            losses = None
             with Timer() as timer:
                 if not fit_with_Adam:
-                    mll = gpytorch.mlls.ExactMarginalLogLikelihood(
-                        likelihood=gp.likelihood, model=gp
-                    )
-                    self.set_train(gp)
-                    fit_gpytorch_mll(mll, **fit_kwargs)
+                    try:
+                        self._fit_with_fit_gpytorch_mll(gp, fit_kwargs)
+                    except ModelFittingError:
+                        losses = self._fit_with_Adam(gp, train_X, fit_kwargs)
                 else:
-                    losses = []
-                    gp.likelihood.noise_covar.register_constraint(
-                        "raw_noise", gpytorch.constraints.GreaterThan(1e-6)
-                    )
-                    mll = gpytorch.mlls.ExactMarginalLogLikelihood(
-                        likelihood=gp.likelihood, model=gp
-                    ).to(train_X)
-                    self.set_train(gp)
-                    lr = fit_kwargs.get("lr", 0.05)
-                    optimizer = torch.optim.Adam(gp.parameters(), lr=lr)
-                    n_train = fit_kwargs.get("n_train", 200)
-                    for _ in range(n_train):
-                        optimizer.zero_grad()
-                        output = gp(train_X)
-                        loss = -mll(output, gp.train_targets)
-                        loss.backward()
-                        losses.append(loss.item())
-                        optimizer.step()
-                    log["losses"] = losses
+                    losses = self._fit_with_Adam(gp, train_X, fit_kwargs)
+            log["losses"] = losses
             log["hyperparameters"] = self.get_model_hyperparameters(gp)
             log["dt"] = timer.dt
 

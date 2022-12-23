@@ -5,11 +5,11 @@ This directory contains a variety of scripts which are used not only by the cont
 
 Installation
 ------------
-``install.sh`` is a helper script for parsing the ``pyproject.toml`` file (see `here <https://github.com/pypa/pip/issues/8049>`_ for the inspiration for these scripts) and installing the required packages as specified there. As also explained in the `README <../README.rst>`_, we can install all or part of ValueAgent's dependencies via the following scripts:
+``install.sh`` is a helper script for parsing the ``pyproject.toml`` file (see `here <https://github.com/pypa/pip/issues/8049>`_ for the inspiration for these scripts) and installing the required packages as specified there. As also explained in the `README <../README.rst>`_, we can install all or part of ScientificValueAgent's dependencies via the following scripts:
 
 .. code-block:: bash
     
-    bash scripts/install.sh       # Install ValueAgent's core dependencies
+    bash scripts/install.sh       # Install ScientificValueAgent's core dependencies
     bash scripts/install.sh test  # Install the test requirements only
 
 

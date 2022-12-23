@@ -115,10 +115,10 @@ def truth_xrd1dim(X):
     return (phases.T @ weights).T
 
 
-def _residual_1d_phase_get_weights(X):
+def _residual_1d_phase_get_weights(X, linspace_points=100_000):
     X = np.unique(X.squeeze())
     known_weights = _get_1d_phase_fractions(X)
-    linspace = np.linspace(0, 100, 100_000)
+    linspace = np.linspace(0, 100, linspace_points)
     true_weights = _get_1d_phase_fractions(linspace)
     f = interp1d(
         X,
@@ -130,7 +130,7 @@ def _residual_1d_phase_get_weights(X):
     return true_weights, interpolated_weights
 
 
-def residual_1d_phase_mse(X):
+def residual_1d_phase_mse(X, linspace_points=100_000):
     """Get residuals of what is known from the sampled locations in
     comparison to the whole phase space. This makes an assumption that a good
     scientist could work out the phase fractions from the patterns provided
@@ -144,6 +144,9 @@ def residual_1d_phase_mse(X):
     ----------
     X : np.array
         1-d array of all data points queried by the agent.
+    linspace_points : int
+        The number of points to take on a linear grid to construct the
+        "ground truth".
 
     Returns
     -------
@@ -151,11 +154,12 @@ def residual_1d_phase_mse(X):
         Mean squared residual error from interpolating knoledge of space.
     """
 
-    true_weights, interpolated_weights = _residual_1d_phase_get_weights(X)
+    L = linspace_points
+    true_weights, interpolated_weights = _residual_1d_phase_get_weights(X, L)
     return np.mean((true_weights - interpolated_weights) ** 2)
 
 
-def residual_1d_phase_relative_mae(X):
+def residual_1d_phase_relative_mae(X, linspace_points=100_000):
     """Similar to ``residual_1d_phase_mse`` but returns the relative mean
     absolute deviation relative to the ground truth (the ``true_weights``).
     This is a common metric in the crystallography community and known as
@@ -166,6 +170,9 @@ def residual_1d_phase_relative_mae(X):
     ----------
     X : np.array
         1-d array of all data points queried by the agent.
+    linspace_points : int
+        The number of points to take on a linear grid to construct the
+        "ground truth".
 
     Returns
     -------
@@ -173,6 +180,7 @@ def residual_1d_phase_relative_mae(X):
         Relative mean absolute deviation from interpolating knoledge of space.
     """
 
-    true_weights, interpolated_weights = _residual_1d_phase_get_weights(X)
+    L = linspace_points
+    true_weights, interpolated_weights = _residual_1d_phase_get_weights(X, L)
     d = np.sum(true_weights, axis=-1, keepdims=True)
     return np.mean(np.abs(true_weights - interpolated_weights) / d)

@@ -1,0 +1,3 @@
+[submodule "sva/submodules/botorch"]
+	path = sva/submodules/botorch
+	url = https://github.com/matthewcarbone/botorch

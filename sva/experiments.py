@@ -7,6 +7,7 @@ from pathlib import Path
 from time import perf_counter
 from warnings import warn
 
+from botorch.acquisition.penalized import PenalizedAcquisitionFunction
 from botorch.exceptions.errors import ModelFittingError
 from botorch.fit import fit_gpytorch_mll
 from botorch.models.transforms.input import Normalize
@@ -684,6 +685,43 @@ class Experiment(MSONable):
 
         if return_self:
             return self
+
+
+class PenaltyModule(torch.nn.Module):
+    def __init__(self, slope=1.0):
+        super().__init__()
+        self._slope = slope
+
+    def forward(self, x):
+
+        # Calculate the element-wise penalty
+        x_copy = x.clone()
+        x1 = torch.abs(x_copy[..., 1].clone())
+        x_copy[..., 1] = x1
+        sigma = x_copy.sum(axis=-1)  # Sum over the last dimension
+        penalty = self._slope * sigma
+        penalty[sigma <= 40] = 0
+
+        # Handle the situation where any of the q's does not satisfy
+        # the constraint. We just sum over that axis now for simplicity
+        return penalty.sum(axis=-1)
+
+
+class UVExperiment(Experiment):
+    def _ask(self, gp, acquisition_function_kwargs):
+        _acqf = self.get_acquisition_function()
+        acquisition_function = _acqf(gp, **acquisition_function_kwargs)
+        penalized_acquisition_function = PenalizedAcquisitionFunction(
+            acquisition_function,
+            penalty_func=PenaltyModule(),
+            regularization_parameter=100.0,
+        )
+        bounds = torch.tensor(self._bounds).float().reshape(-1, 2).T
+        return optimize_acqf(
+            penalized_acquisition_function,
+            bounds=bounds,
+            **self._optimize_acqf_kwargs,
+        )
 
 
 def get_experiments(params):

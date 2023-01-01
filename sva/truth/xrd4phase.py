@@ -7,9 +7,9 @@ import pandas as pd
 from sva.truth.common import sigmoid
 
 
-def slow_linear_phase(x, y, x0=0.15, a=10.0):
+def slow_linear_phase(x, y, x0=0.55, a=4.0):
     # y = -x + 1
-    d = np.abs(y - (1.25 - 2.0 * x))
+    d = np.abs(y - (0.25 - 2.0 * x))
     return 1.0 - sigmoid(d, x0=x0, a=a)
 
 
@@ -20,7 +20,7 @@ def corner_circle_phase(x, y, x0=0.5, a=30.0, loc_x=1.0, loc_y=1.0):
     return 1.0 - sigmoid(r, x0=x0, a=a)
 
 
-def side_circle_phase(x, y, x0=0.2, a=50.0, loc_x=0.0, loc_y=0.25):
+def side_circle_phase(x, y, x0=0.15, a=50.0, loc_x=0.8, loc_y=0.25):
     # Distance from a point near the bottom right quadrant
     # x, y = scale_coords(x, y)
     r = np.sqrt((loc_x - x) ** 2 + (loc_y - y) ** 2)

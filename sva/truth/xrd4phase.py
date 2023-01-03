@@ -3,9 +3,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy.interpolate import griddata
 
 from sva.truth.common import sigmoid
-
 
 # Don't change the keyword argument defaults, they actually should be
 # treated as hardcoded...
@@ -142,3 +142,39 @@ def truth_xrd4phase(X):
     total_prop[total_prop > 1.0] = 1.0
     prop4 = 1.0 - total_prop
     return np.array([prop1, prop2, prop3, prop4]).T @ pure_phases
+
+
+def _get_2d_phase_fractions(X):
+    return np.array(
+        [
+            corner_circle_phase(*X.T),
+            slow_linear_phase(*X.T),
+            full_circle_phase(*X.T),
+        ]
+    )
+
+
+def _residual_2d_phase_get_weights(X, grid_points=1_000):
+    grid_x, grid_y = np.mgrid[
+        0 : 1 : grid_points * 1j, 0 : 1 : grid_points * 1j
+    ]
+    space = np.vstack([grid_x.ravel(), grid_y.ravel()]).T
+    true_weights = _get_2d_phase_fractions(space)
+    known_weights = _get_2d_phase_fractions(X)
+
+    interpolated_weights = np.array(
+        [
+            griddata(
+                X, w, (grid_x, grid_y), method="linear", fill_value=0.0
+            ).ravel()
+            for w in known_weights
+        ]
+    )
+    return true_weights, interpolated_weights
+
+
+def residual_2d_phase_mse(X, grid_points=1_000):
+    true_weights, interpolated_weights = _residual_2d_phase_get_weights(
+        X, grid_points
+    )
+    return np.mean((true_weights - interpolated_weights) ** 2)

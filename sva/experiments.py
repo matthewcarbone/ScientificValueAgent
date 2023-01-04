@@ -332,13 +332,16 @@ class UVData(Data):
         xmin,
         xmax,
         seed=125,
-        n=3,
+        points_per_dimension=3,
+        ndim=3,
     ):
-        assert len(xmin) == len(xmax)
-        ndim = len(xmin)
+        if isinstance(xmin, np.ndarray):
+            assert isinstance(xmax, np.ndarray)
+            assert len(xmin) == len(xmax)
+            ndim = len(xmin)
 
         np.random.seed(seed)
-        X = np.random.random(size=(n, ndim))
+        X = np.random.random(size=(points_per_dimension, ndim))
         X = (xmax - xmin) * X + xmin
 
         Y = np.array(
@@ -724,26 +727,73 @@ class UVExperiment(Experiment):
         )
 
 
+def set_truth_info(truth_signature):
+
+    # Set the type of class we're dealing with
+    if "truth_uv" in truth_signature:
+        data_klass = UVData
+        experiment_klass = UVExperiment
+    else:
+        data_klass = Data
+        experiment_klass = UVExperiment
+
+    # Set the pieces that depend only on the type of truth
+    data_kwargs = {}
+    if (
+        "truth_sine2phase" in truth_signature
+        or "truth_xrd4phase" in truth_signature
+    ):
+
+        # This experiment is two-dimensional between 0 and 1 on both axes
+        data_kwargs["xmin"] = 0.0
+        data_kwargs["xmax"] = 1.0
+        data_kwargs["ndim"] = 2
+
+    elif "truth_xrd1dim" in truth_signature:
+
+        # This experiment is one-dimensional between 0 and 100 on the only axis
+        data_kwargs["xmin"] = 0.0
+        data_kwargs["xmax"] = 100.0
+        data_kwargs["ndim"] = 1
+
+    elif "truth_uv" in truth_signature:
+
+        # This experiment is special and has special boundaries
+        # Don't need to set ndim, this is et by UVData itself from the lengths
+        # of these boundaries ``xmin`` and ``xmax``
+        data_kwargs["xmin"] = np.array([1.0, -16.0, 2.0])
+        data_kwargs["xmax"] = np.array([16.0, 16.0, 16.0])
+
+    else:
+        raise ValueError(f"Unknown truth signature: {truth_signature}")
+
+    return data_klass, experiment_klass, data_kwargs
+
+
 def get_experiments(params):
 
     how = params["how"]
 
     value_signature = params["value_function_signature"]
     truth_signature = params["truth_function_signature"]
+
+    data_klass, experiment_klass, data_kwargs = set_truth_info(truth_signature)
+
     value_name = value_signature.split(":")[1]
     truth_name = truth_signature.split(":")[1]
 
     value_function = get_function_from_signature(value_signature)
     truth_function = get_function_from_signature(truth_signature)
 
-    from_initial_conditions_kwargs = dict(
+    data_kwargs = dict(
         truth=truth_function,
         value=value_function,
         seed="set me",
         how=how,
         truth_kwargs=params.get("truth_function_kwargs", dict()),
         value_kwargs=params.get("value_function_kwargs", dict()),
-        **params["from_initial_conditions_kwargs"],
+        **params["data_kwargs"],
+        **data_kwargs,
     )
 
     # Still need to set `acqf`, `acqf_kwargs` and `name`
@@ -791,11 +841,11 @@ def get_experiments(params):
             experiment_kwargs["experiment_seed"] = eseed
             experiment_kwargs["name"] = name
 
-            ckwargs = from_initial_conditions_kwargs.copy()
+            ckwargs = data_kwargs.copy()
             ckwargs["seed"] = cseed
-            d0 = Data.from_initial_conditions(**ckwargs)
+            d0 = data_klass.from_initial_conditions(**ckwargs)
 
-            exp = Experiment(data=d0, **experiment_kwargs)
+            exp = experiment_klass(data=d0, **experiment_kwargs)
             list_of_experiments.append(exp)
 
     names = [xx.name for xx in list_of_experiments]

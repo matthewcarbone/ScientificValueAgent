@@ -10,11 +10,8 @@ truth_function_signature: "sva.truth.xrd1dim:truth_xrd1dim"
 
 how: "random"
 
-from_initial_conditions_kwargs:
-  xmin: 0.0
-  xmax: 100.0
+data_kwargs:
   points_per_dimension: 3
-  ndim: 1
   n_raster: null
 
 experiment_fixed_kwargs:

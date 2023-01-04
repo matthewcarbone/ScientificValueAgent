@@ -7,11 +7,8 @@ truth_function_signature: "sva.truth.sine2phase:truth_sine2phase"
 
 how: "random"
 
-from_initial_conditions_kwargs:
-  xmin: 0.0
-  xmax: 1.0
+data_kwargs:
   points_per_dimension: 3
-  ndim: 2
   n_raster: null
 
 experiment_fixed_kwargs:

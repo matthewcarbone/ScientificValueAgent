@@ -759,10 +759,9 @@ def set_truth_info(truth_signature):
     elif "truth_uv" in truth_signature:
 
         # This experiment is special and has special boundaries
-        # Don't need to set ndim, this is et by UVData itself from the lengths
-        # of these boundaries ``xmin`` and ``xmax``
         data_kwargs["xmin"] = np.array([1.0, -16.0, 2.0])
         data_kwargs["xmax"] = np.array([16.0, 16.0, 16.0])
+        data_kwargs["ndim"] = 3
 
     else:
         raise ValueError(f"Unknown truth signature: {truth_signature}")

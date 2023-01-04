@@ -735,7 +735,7 @@ def set_truth_info(truth_signature):
         experiment_klass = UVExperiment
     else:
         data_klass = Data
-        experiment_klass = UVExperiment
+        experiment_klass = Experiment
 
     # Set the pieces that depend only on the type of truth
     data_kwargs = {}

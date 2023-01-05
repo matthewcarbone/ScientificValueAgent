@@ -742,6 +742,7 @@ def set_truth_info(truth_signature):
     if (
         "truth_sine2phase" in truth_signature
         or "truth_xrd4phase" in truth_signature
+        or "truth_linear2phase" in truth_signature
     ):
 
         # This experiment is two-dimensional between 0 and 1 on both axes

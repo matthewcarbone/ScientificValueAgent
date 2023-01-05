@@ -29,3 +29,26 @@ def limited_time_budget(N, dims):
     deltax = 1.0 / (N - 1)
     arr = [deltax * ii for ii in range(N)]
     return np.array(list(product(*[arr for _ in range(dims)])))
+
+
+def mu_Gaussians(p, E=np.linspace(-1, 1, 100), x0=0.5, sd=0.05):
+    """Returns a dummy "spectrum" which is just two Gaussian functions. The
+    proportion of the two functions is goverened by ``p``.
+
+    Parameters
+    ----------
+    p : float
+        The proportion of the first phase.
+    E : numpy.ndarray
+        Energy grid.
+
+    Returns
+    -------
+    numpy.ndarray
+        The spectrum on the provided grid.
+    """
+
+    p2 = 1.0 - p
+    return p * np.exp(-((x0 - E) ** 2) / sd) + p2 * np.exp(
+        -((x0 + E) ** 2) / sd
+    )

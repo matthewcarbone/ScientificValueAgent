@@ -1,5 +1,7 @@
 import numpy as np
 
+from scipy.interpolate import griddata
+
 from sva.truth.common import sigmoid
 
 
@@ -111,3 +113,50 @@ def points_in_10_percent_range(X):
     where = np.where((y < y_upper) & (y > y_lower))[0]
     L = len(where)
     return L / total_points
+
+
+def sine2phase_interpolant_2d(
+    X, grid_points, phase_truth=phase_1_sine_on_2d_raster
+):
+    """Returns a 2-dimensional, linear interpolant for the sine2phase example.
+
+    Parameters
+    ----------
+    X : np.ndarray
+        The points on the grid, of shape (n x d).
+    phase_truth : callable
+        A function that takes as input meshgrids x and y and returns an array
+        containing the phase proportions of phase 1.
+    grid_points : int
+        The number of grid points to use for the linear interpolant.
+
+    Returns
+    -------
+    np.ndarray, np.ndarray
+        The "true" (dense grid) and interpolated (sampled points) results.
+    """
+
+    g = np.linspace(0, 1, grid_points)
+    dense_x, dense_y = np.meshgrid(g, g)
+    space = np.vstack([dense_x.ravel(), dense_y.ravel()]).T
+    true = phase_truth(space[:, 0], space[:, 1])
+    known = phase_truth(X[:, 0], X[:, 1])
+    interpolated = griddata(
+        X, known, (dense_x, dense_y), method="linear", fill_value=0.0
+    )
+    return true.reshape(grid_points, grid_points), interpolated
+
+
+def sine2phase_residual_2d_phase_mse(
+    X, grid_points, phase_truth=phase_1_sine_on_2d_raster
+):
+    true, interpolated = sine2phase_interpolant_2d(X, grid_points, phase_truth)
+    return np.mean((true - interpolated) ** 2)
+
+
+def sine2phase_residual_2d_phase_relative_mae(
+    X, grid_points, phase_truth=phase_1_sine_on_2d_raster
+):
+    true, interpolated = sine2phase_interpolant_2d(X, grid_points, phase_truth)
+    d = np.sum(true, axis=-1, keepdims=True)
+    return np.mean(np.abs(true - interpolated) / d)

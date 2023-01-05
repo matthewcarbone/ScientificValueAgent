@@ -1,8 +1,9 @@
 import numpy as np
+from tqdm import tqdm
 
 from scipy.interpolate import griddata
 
-from sva.truth.common import sigmoid
+from sva.truth.common import sigmoid, limited_time_budget
 
 
 def get_2d_grids(
@@ -116,7 +117,10 @@ def points_in_10_percent_range(X):
 
 
 def sine2phase_interpolant_2d(
-    X, grid_points, phase_truth=phase_1_sine_on_2d_raster
+    X,
+    grid_points,
+    phase_truth=phase_1_sine_on_2d_raster,
+    interpolation_method="linear",
 ):
     """Returns a 2-dimensional, linear interpolant for the sine2phase example.
 
@@ -124,14 +128,17 @@ def sine2phase_interpolant_2d(
     ----------
     X : np.ndarray
         The points on the grid, of shape (n x d).
+    grid_points : int
+        The number of grid points to use for the linear interpolant.
     phase_truth : callable
         A function that takes as input meshgrids x and y and returns an array
         containing the phase proportions of phase 1.
-    grid_points : int
-        The number of grid points to use for the linear interpolant.
+    interpolation_method : str, optional
+        The interpolation method to pass to ``griddata``. Recommendation is to
+        use "linear", "nearest" and "cubic".
 
-    Returns
-    -------
+    No Longer Returned
+    ------------------
     np.ndarray, np.ndarray
         The "true" (dense grid) and interpolated (sampled points) results.
     """
@@ -142,21 +149,92 @@ def sine2phase_interpolant_2d(
     true = phase_truth(space[:, 0], space[:, 1])
     known = phase_truth(X[:, 0], X[:, 1])
     interpolated = griddata(
-        X, known, (dense_x, dense_y), method="linear", fill_value=0.0
+        X,
+        known,
+        (dense_x, dense_y),
+        method=interpolation_method,
+        fill_value=0.0,
     )
     return true.reshape(grid_points, grid_points), interpolated
 
 
 def sine2phase_residual_2d_phase_mse(
-    X, grid_points, phase_truth=phase_1_sine_on_2d_raster
+    X,
+    grid_points,
+    phase_truth=phase_1_sine_on_2d_raster,
+    interpolation_method="linear",
 ):
-    true, interpolated = sine2phase_interpolant_2d(X, grid_points, phase_truth)
+    true, interpolated = sine2phase_interpolant_2d(
+        X, grid_points, phase_truth, interpolation_method
+    )
     return np.mean((true - interpolated) ** 2)
 
 
 def sine2phase_residual_2d_phase_relative_mae(
-    X, grid_points, phase_truth=phase_1_sine_on_2d_raster
+    X,
+    grid_points,
+    phase_truth=phase_1_sine_on_2d_raster,
+    interpolation_method="linear",
 ):
-    true, interpolated = sine2phase_interpolant_2d(X, grid_points, phase_truth)
+    true, interpolated = sine2phase_interpolant_2d(
+        X, grid_points, phase_truth, interpolation_method
+    )
     d = np.sum(true, axis=-1, keepdims=True)
     return np.mean(np.abs(true - interpolated) / d)
+
+
+def sine2phase_compute_metrics_all_acquisition_functions_and_LTB(
+    results_by_acqf,
+    metrics_grid=list(range(3, 251, 3)),
+    metrics_grid_linear=[ii for ii in range(2, 16)],
+    metric_function=sine2phase_residual_2d_phase_mse,
+    metric_kwargs={
+        "grid_points": 100,
+        "interpolation_method": "linear",
+    },
+    disable_pbar=False,
+):
+    """Computes the metric provided across all data.
+
+    Parameters
+    ----------
+    results_by_acqf : dict
+        Result of ``sva.postprocessing.parse_results_by_acquisition_function``.
+    metrics_grid : array_like, optional
+        The n-grid for the metric.
+    metrics_grid_linear : array_like, optional
+        The n-grid for the LTB metric.
+    metric_function : function, optional
+    metric_kwargs : dict, optional
+    disable_pbar : bool, optional
+
+    Returns
+    -------
+    dict
+    """
+
+    all_metrics = dict()
+    for acquisition_function_name, values in results_by_acqf.items():
+        tmp_metrics = []
+        for N in tqdm(metrics_grid, disable=disable_pbar):
+            tmp_metrics.append(
+                [
+                    metric_function(exp.data.X[:N], **metric_kwargs)
+                    for exp in values
+                ]
+            )
+        all_metrics[acquisition_function_name] = np.array(tmp_metrics)
+
+    all_metrics["Linear"] = []
+    for N_per_dim in tqdm(metrics_grid_linear, disable=disable_pbar):
+        arr = limited_time_budget(N_per_dim, 2)
+        res = sine2phase_residual_2d_phase_mse(arr, **metric_kwargs)
+        all_metrics["Linear"].append(res)
+    all_metrics["Linear"] = np.array(all_metrics["Linear"]).reshape(-1, 1)
+    metrics_grid_linear = np.array(metrics_grid_linear) ** 2
+
+    return {
+        "metrics": all_metrics,
+        "metrics_grid": metrics_grid,
+        "metrics_grid_linear": metrics_grid_linear,
+    }

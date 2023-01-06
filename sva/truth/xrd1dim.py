@@ -2,6 +2,7 @@ from functools import cache
 
 import numpy as np
 from scipy.interpolate import interp1d
+from tqdm import tqdm
 
 from sva.truth.common import sigmoid
 
@@ -118,7 +119,7 @@ def truth_xrd1dim(X):
 def _residual_1d_phase_get_weights(X, linspace_points=100_000):
     X = np.unique(X.squeeze())
     known_weights = _get_1d_phase_fractions(X)
-    linspace = np.linspace(0, 100, linspace_points)
+    linspace = np.linspace(0.0, 100.0, linspace_points)
     true_weights = _get_1d_phase_fractions(linspace)
     f = interp1d(
         X,
@@ -130,7 +131,7 @@ def _residual_1d_phase_get_weights(X, linspace_points=100_000):
     return true_weights, interpolated_weights
 
 
-def residual_1d_phase_mse(X, linspace_points=100_000):
+def residual_1d_phase_mse(X, linspace_points=10_000, use_only=None):
     """Get residuals of what is known from the sampled locations in
     comparison to the whole phase space. This makes an assumption that a good
     scientist could work out the phase fractions from the patterns provided
@@ -154,12 +155,21 @@ def residual_1d_phase_mse(X, linspace_points=100_000):
         Mean squared residual error from interpolating knoledge of space.
     """
 
-    L = linspace_points
-    true_weights, interpolated_weights = _residual_1d_phase_get_weights(X, L)
-    return np.mean((true_weights - interpolated_weights) ** 2)
+    true_weights, interpolated_weights = _residual_1d_phase_get_weights(
+        X, linspace_points
+    )
+
+    assert np.sum(np.isnan(true_weights)) == 0
+
+    # tmp is of shape n_phases x linspace_points
+    tmp = (true_weights - interpolated_weights) ** 2
+    if use_only is not None:
+        tmp = tmp[:, use_only]
+
+    return np.nanmean(tmp)
 
 
-def residual_1d_phase_relative_mae(X, linspace_points=100_000):
+def residual_1d_phase_relative_mae(X, linspace_points=10_000, use_only=None):
     """Similar to ``residual_1d_phase_mse`` but returns the relative mean
     absolute deviation relative to the ground truth (the ``true_weights``).
     This is a common metric in the crystallography community and known as
@@ -180,7 +190,95 @@ def residual_1d_phase_relative_mae(X, linspace_points=100_000):
         Relative mean absolute deviation from interpolating knoledge of space.
     """
 
-    L = linspace_points
-    true_weights, interpolated_weights = _residual_1d_phase_get_weights(X, L)
-    d = np.sum(true_weights, axis=-1, keepdims=True)
-    return np.mean(np.abs(true_weights - interpolated_weights) / d)
+    true_weights, interpolated_weights = _residual_1d_phase_get_weights(
+        X, linspace_points
+    )
+    assert np.sum(np.isnan(true_weights)) == 0
+    not_nans = ~np.isnan(interpolated_weights)
+    d = np.sum(true_weights * not_nans, axis=-1, keepdims=True)
+
+    # tmp is of shape n_phases x linspace_points
+    tmp = np.abs(true_weights - interpolated_weights) / d
+    if use_only is not None:
+        tmp = tmp[:, use_only]
+
+    return np.nanmean(tmp)
+
+
+def xrd1dim_compute_metrics_all_acquisition_functions_and_LTB(
+    results_by_acqf,
+    metrics_grid=list(range(3, 251, 10)),
+    metrics_grid_linear=list(range(3, 251, 10)),
+    metric="rmae",
+    grid_points=10000,
+    disable_pbar=False,
+    xmin=0.0,
+    xmax=100.0,
+):
+    """Computes the metric provided across all data.
+
+    Parameters
+    ----------
+    results_by_acqf : dict
+        Result of ``sva.postprocessing.parse_results_by_acquisition_function``.
+    metrics_grid : array_like, optional
+        The n-grid for the metric.
+    metrics_grid_linear : array_like, optional
+        The n-grid for the LTB metric.
+    metric : {"mse", "rmae"}, optional
+    grid_points : int, optional
+    interpolation_method : str, optional
+    disable_pbar : bool, optional
+
+    Returns
+    -------
+    dict
+    """
+
+    if metric == "mse":
+        metric_function = residual_1d_phase_mse
+    elif metric == "rmae":
+        metric_function = residual_1d_phase_relative_mae
+    else:
+        raise ValueError(f"Unknown metric={metric}")
+
+    G = np.linspace(0.0, 100.0, grid_points)
+    if xmin == 0.0 and xmax == 100.0:
+        use_only = None
+    else:
+        use_only = np.where((G <= xmax) & (G >= xmin))[0]
+
+    all_metrics = dict()
+    for acquisition_function_name, values in results_by_acqf.items():
+        tmp_metrics = []
+        for n in tqdm(metrics_grid, disable=disable_pbar):
+            tmp_list_1 = []
+            for exp in values:
+                X_tmp = exp.data.X[:n].squeeze()
+                try:
+                    r = metric_function(
+                        X_tmp,
+                        linspace_points=grid_points,
+                        use_only=use_only,
+                    )
+                except IndexError:
+                    r = np.nan
+                tmp_list_1.append(r)
+            tmp_metrics.append(tmp_list_1)
+        all_metrics[acquisition_function_name] = np.array(tmp_metrics)
+
+    all_metrics["Linear"] = []
+    for N in tqdm(metrics_grid_linear, disable=disable_pbar):
+        res = metric_function(
+            np.linspace(0, 100, N),
+            linspace_points=grid_points,
+            use_only=use_only,
+        )
+        all_metrics["Linear"].append(res)
+    all_metrics["Linear"] = np.array(all_metrics["Linear"]).reshape(-1, 1)
+
+    return {
+        "metrics": all_metrics,
+        "metrics_grid": metrics_grid,
+        "metrics_grid_linear": metrics_grid_linear,
+    }

@@ -8,7 +8,7 @@ from sva.value import default_asymmetric_value_function
 @pytest.mark.parametrize("fit_with_Adam", [True, False])
 def test_sine2phase(fit_with_Adam):
     data = experiments.Data.from_initial_conditions(
-        sine2phase.truth_sine2phase,
+        sine2phase._truth_sine2phase_a30,
         value=default_asymmetric_value_function,
         seed=123,
         how="random",

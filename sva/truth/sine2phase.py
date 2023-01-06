@@ -22,6 +22,11 @@ def phase_1_sine_on_2d_raster(x, y, x0=0.5, a=100.0):
     return sigmoid(distance, x0, a)
 
 
+def _truth_sine2phase_a30(X):
+    phase_1 = [phase_1_sine_on_2d_raster(*c, x0=0.5, a=30.0) for c in X]
+    return np.array([mu_Gaussians(p) for p in phase_1])
+
+
 def truth_sine2phase(X):
     phase_1 = [phase_1_sine_on_2d_raster(*c) for c in X]
     return np.array([mu_Gaussians(p) for p in phase_1])

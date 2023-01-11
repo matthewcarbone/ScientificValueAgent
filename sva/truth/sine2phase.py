@@ -139,5 +139,5 @@ def sine2phase_compute_metrics_all_acquisition_functions_and_LTB(
             "grid_points": grid_points,
             "interpolation_method": interpolation_method,
         },
-        disable_pbar=False,
+        disable_pbar=disable_pbar,
     )

@@ -150,6 +150,7 @@ def _residual_2d_phase_mse(
     true, interpolated = _interpolant_2d(
         X, grid_points, phase_truth, interpolation_method
     )
+    assert np.sum(np.isnan(true)) == 0
     return np.nanmean((true - interpolated) ** 2)
 
 
@@ -162,7 +163,9 @@ def _residual_2d_phase_relative_mae(
     true, interpolated = _interpolant_2d(
         X, grid_points, phase_truth, interpolation_method
     )
-    d = np.nansum(true, axis=-1, keepdims=True)
+    assert np.sum(np.isnan(true)) == 0
+    not_nans = ~np.isnan(interpolated)
+    d = np.sum(true * not_nans)
     return np.nanmean(np.abs(true - interpolated) / d)
 
 

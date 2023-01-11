@@ -209,7 +209,7 @@ def xrd1dim_compute_metrics_all_acquisition_functions_and_LTB(
     results_by_acqf,
     metrics_grid=list(range(3, 251, 10)),
     metrics_grid_linear=list(range(3, 251, 10)),
-    metric="rmae",
+    metric="mse",
     grid_points=10000,
     disable_pbar=False,
     xmin=0.0,

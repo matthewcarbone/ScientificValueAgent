@@ -764,6 +764,12 @@ def set_truth_info(truth_signature):
         data_kwargs["xmax"] = np.array([16.0, 16.0, 16.0])
         data_kwargs["ndim"] = 3
 
+    elif "truth_bto" in truth_signature:
+
+        data_kwargs["xmin"] = 150.0
+        data_kwargs["xmax"] = 445.0
+        data_kwargs["ndim"] = 1
+
     else:
         raise ValueError(f"Unknown truth signature: {truth_signature}")
 

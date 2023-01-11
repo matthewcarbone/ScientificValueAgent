@@ -26,4 +26,4 @@ def truth_bto(temperature) -> np.ndarray:
         temperature points to estimate patterns for
     """
     da = _load_bto_data()
-    return da.interp(temperature=temperature).data
+    return da.interp(temperature=temperature.squeeze()).data.T

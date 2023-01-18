@@ -12,7 +12,7 @@ def _get_uv_model():
     df = pd.read_csv(p)
     X = df[["NCit", "pH", "HA"]].to_numpy()
     Y = df.iloc[:, 4:].to_numpy()
-    knn = KNeighborsRegressor(n_neighbors=2, weights="distance")
+    knn = KNeighborsRegressor(n_neighbors=5, weights="distance")
     knn.fit(X, Y)
     return knn
 

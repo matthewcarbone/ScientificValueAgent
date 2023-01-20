@@ -48,7 +48,6 @@ def _get_cmf_predicted_phase_fractions(X: np.ndarray):
     return weights.interp(temperature=X)
 
 
-@cache
 def _get_cmf_predicted_phase_fractions_linspace(X: np.ndarray):
     """Construct the predicted weights as a ground truth from the cmf data
     Exact copy of the above, but only caching for the linspace which is
@@ -63,6 +62,7 @@ def _get_cmf_predicted_phase_fractions_linspace(X: np.ndarray):
     np.ndarray
         Array of phase weights for all X points. Shape is (X.shape[0], 4)
     """
+
     _, weights = _load_bto_data()
     return weights.interp(temperature=X)
 
@@ -81,9 +81,9 @@ def cmf_predicted_mse(X, linspace_points=5_000):
     """
 
     X = np.unique(X.squeeze())
-    known_weights = _get_cmf_predicted_phase_fractions(X)
+    known_weights = _get_cmf_predicted_phase_fractions(X).T
     linspace = np.linspace(150.0, 445.0, linspace_points)
-    true_weights = _get_cmf_predicted_phase_fractions_linspace(linspace)
+    true_weights = _get_cmf_predicted_phase_fractions_linspace(linspace).T
     f = interp1d(
         X,
         known_weights,

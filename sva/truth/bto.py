@@ -15,7 +15,7 @@ def _load_bto_data():
     """
 
     data_path = Path(__file__).parent / "bto_data.nc"
-    weights_path = Path(__file__).parent / "bto_weights.nc"
+    weights_path = Path(__file__).parent / "bto_xca_weights.nc"
     return xr.open_dataarray(data_path), xr.open_dataarray(weights_path)
 
 

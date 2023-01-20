@@ -82,7 +82,7 @@ def cmf_predicted_mse(X, linspace_points=5_000):
 
     X = np.unique(X.squeeze())
     known_weights = _get_cmf_predicted_phase_fractions(X)
-    linspace = np.linspace(0.0, 100.0, linspace_points)
+    linspace = np.linspace(150.0, 445.0, linspace_points)
     true_weights = _get_cmf_predicted_phase_fractions_linspace(linspace)
     f = interp1d(
         X,

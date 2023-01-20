@@ -7,11 +7,12 @@ from scipy.interpolate import interp1d
 
 
 @cache
-def _load_bto_data() -> Tuple[xr.DataArray]:
+def _load_bto_data():
     """Loads BTO data into an xarray.
     These are diffraction patterns over ~0 to 25 AA.
     The termperature range is 150 to 445.
     """
+
     data_path = Path(__file__).parent / "bto_data.nc"
     weights_path = Path(__file__).parent / "bto_weights.nc"
     return xr.open_dataarray(data_path), xr.open_dataarray(weights_path)

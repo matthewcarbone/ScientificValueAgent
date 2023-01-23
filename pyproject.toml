@@ -35,7 +35,8 @@ dependencies = [
     "botorch==0.7.2",
     "pyyaml",
     "matplotlib",
-    "xarray"
+    "xarray",
+    "tensorflow"
 ]
 
 [project.optional-dependencies]

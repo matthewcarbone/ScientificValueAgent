@@ -7,7 +7,7 @@ TK
 
 Funding acknowledgement
 -----------------------
-This research is supported by Brookhaven National Laboratory (Contract No. DE-SC0012704), Laboratory Directed Research and Development Grant No. 22-059: "Precision synthesis of multiscale nanomaterials through AI-guided robotics for advanced catalysts."
+This software is supported by Brookhaven National Laboratory (BNL), Laboratory Directed Research and Development (LDRD) Grants: No. 22-059, "Precision synthesis of multiscale nanomaterials through AI-guided robotics for advanced catalysts,” and No 23-039, "Extensible robotic beamline scientist for self-driving total scattering studies."
 
 Disclaimer
 ^^^^^^^^^^

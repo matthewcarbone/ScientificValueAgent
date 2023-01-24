@@ -23,12 +23,14 @@ def _load_bto_data():
 @cache
 def load_model(model_type="forward"):
     path = (
-        Path(__file__).parent / "models" / dict(forward="ff_ensemble", vae="encoder")[model_type.lower()]
+        Path(__file__).parent
+        / "models"
+        / dict(forward="ff_ensemble", vae="encoder")[model_type.lower()]
     ).absolute()
     return tf.keras.models.load_model(str(path), compile=False)
 
 
-def truth_bto(temperature, model_type=None) -> np.ndarray:
+def _truth_bto(temperature, model_type=None) -> np.ndarray:
     """
     Returns interpolated X-ray diffraction pattern for BTO at
     temperature between 150 and 445.
@@ -37,9 +39,9 @@ def truth_bto(temperature, model_type=None) -> np.ndarray:
     ----------
     temperature : Union[float, list, np.ndarray]
         temperature points to estimate patterns for
-    model_type : Optional, str
-        One of {'forward', 'vae'}.
-        Will determine the processing model for converting the raw XRD into a latent rep.
+    model_type : Optional, {'forward', 'vae'}
+        Will determine the processing model for converting the raw XRD into a
+        latent rep.
         Forward: average of an ensemble predictor
         VAE: Encoder from a variational autoencoder
     """
@@ -53,6 +55,28 @@ def truth_bto(temperature, model_type=None) -> np.ndarray:
             return output[0].numpy()
         else:
             return output.numpy()
+
+
+def truth_bto(temperature) -> np.ndarray:
+    """
+    Returns interpolated X-ray diffraction pattern for BTO at
+    temperature between 150 and 445.
+
+    Parameters
+    ----------
+    temperature : Union[float, list, np.ndarray]
+        temperature points to estimate patterns for
+    """
+
+    return _truth_bto(temperature, model_type=None)
+
+
+def truth_bto_forward_nn(temperature):
+    return _truth_bto(temperature, model_type="forward")
+
+
+def truth_bto_vae(temperature):
+    return _truth_bto(temperature, model_type="vae")
 
 
 def _get_cmf_predicted_phase_fractions(X: np.ndarray):

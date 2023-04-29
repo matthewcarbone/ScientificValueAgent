@@ -1,11 +1,11 @@
 from functools import cache
 from pathlib import Path
+from warnings import warn
 
 import numpy as np
 import xarray as xr
 from scipy.interpolate import interp1d
 from tqdm import tqdm
-from warnings import warn
 
 try:
     import tensorflow as tf
@@ -22,16 +22,14 @@ def _load_bto_data():
     """
 
     data_path = Path(__file__).parent / "bto_data.nc"
-    weights_path = Path(__file__).parent / "bto_weights.nc"
+    weights_path = Path(__file__).parent / "bto_rietveld_weights.nc"
     return xr.open_dataarray(data_path), xr.open_dataarray(weights_path)
 
 
 @cache
 def load_model(model_type="forward"):
     path = (
-        Path(__file__).parent
-        / "models"
-        / dict(forward="ff_ensemble", vae="encoder")[model_type.lower()]
+        Path(__file__).parent / "models" / dict(forward="ff_ensemble", vae="encoder")[model_type.lower()]
     ).absolute()
     return tf.keras.models.load_model(str(path), compile=False)
 

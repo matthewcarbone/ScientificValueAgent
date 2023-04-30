@@ -29,7 +29,9 @@ def _load_bto_data():
 @cache
 def load_model(model_type="forward"):
     path = (
-        Path(__file__).parent / "models" / dict(forward="ff_ensemble", vae="encoder")[model_type.lower()]
+        Path(__file__).parent
+        / "models"
+        / dict(forward="ff_ensemble", vae="encoder")[model_type.lower()]
     ).absolute()
     return tf.keras.models.load_model(str(path), compile=False)
 

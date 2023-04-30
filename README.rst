@@ -1,7 +1,7 @@
 Scientific Value Agent
 ======================
 
-TK
+**NOTE: The code is currently only working with cpu. Make sure you `export CUDA_VISIBLE_DEVICES=""` before running.**
 
 .. inclusion-marker-ValueAgent-funding-begin
 

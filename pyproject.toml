@@ -36,7 +36,7 @@ dependencies = [
     "pyyaml",
     "matplotlib",
     "xarray",
-    "tensorflow"
+    "tensorflow-cpu"
 ]
 
 [project.optional-dependencies]

@@ -41,7 +41,6 @@ def set_grids(
     right=True,
     top=True,
 ):
-
     if minorticks:
         ax.minorticks_on()
 

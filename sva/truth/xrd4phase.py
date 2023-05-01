@@ -122,7 +122,6 @@ def points_in_full_circle_phase(X):
 
 @cache
 def _get_xrd_map():
-
     # Utterly horrendous practice here but for this it's fine...
     p = Path(__file__).absolute().parent / "xrd_map.xlsx"
     df = pd.read_excel(p, header=0, index_col=0)

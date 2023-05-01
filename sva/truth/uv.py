@@ -7,7 +7,6 @@ from sklearn.neighbors import KNeighborsRegressor
 
 @cache
 def _get_uv_model():
-
     p = Path(__file__).absolute().parent / "uv_data.csv"
     df = pd.read_csv(p)
     X = df[["NCit", "pH", "HA"]].to_numpy()

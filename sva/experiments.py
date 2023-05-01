@@ -596,7 +596,6 @@ class Experiment(MSONable):
         n_experiments = max_n_dat - self.data.N
 
         for ii in tqdm(range(n_experiments), disable=not pbar):
-
             n_dat = self.data.N
 
             if n_dat >= max_n_dat:
@@ -696,7 +695,6 @@ class PenaltyModule(torch.nn.Module):
         self._slope = slope
 
     def forward(self, x):
-
         # Calculate the element-wise penalty
         x_copy = x.clone()
         x1 = torch.abs(x_copy[..., 1].clone())
@@ -728,7 +726,6 @@ class UVExperiment(Experiment):
 
 
 def set_truth_info(truth_signature):
-
     # Set the type of class we're dealing with
     if "truth_uv" in truth_signature:
         data_klass = UVData
@@ -744,28 +741,24 @@ def set_truth_info(truth_signature):
         or "truth_xrd4phase" in truth_signature
         or "truth_linear2phase" in truth_signature
     ):
-
         # This experiment is two-dimensional between 0 and 1 on both axes
         data_kwargs["xmin"] = 0.0
         data_kwargs["xmax"] = 1.0
         data_kwargs["ndim"] = 2
 
     elif "truth_xrd1dim" in truth_signature:
-
         # This experiment is one-dimensional between 0 and 100 on the only axis
         data_kwargs["xmin"] = 0.0
         data_kwargs["xmax"] = 100.0
         data_kwargs["ndim"] = 1
 
     elif "truth_uv" in truth_signature:
-
         # This experiment is special and has special boundaries
         data_kwargs["xmin"] = np.array([1.0, -16.0, 2.0])
         data_kwargs["xmax"] = np.array([16.0, 16.0, 16.0])
         data_kwargs["ndim"] = 3
 
     elif "truth_bto" in truth_signature:
-
         data_kwargs["xmin"] = 150.0
         data_kwargs["xmax"] = 445.0
         data_kwargs["ndim"] = 1
@@ -777,7 +770,6 @@ def set_truth_info(truth_signature):
 
 
 def get_experiments(params):
-
     how = params["how"]
 
     value_signature = params["value_function_signature"]
@@ -837,8 +829,7 @@ def get_experiments(params):
             beta = int(beta)
             acqf_name = f"{acqf_name}{beta}"
 
-        for (cseed, eseed) in zip(coords_seeds, exp_seeds):
-
+        for cseed, eseed in zip(coords_seeds, exp_seeds):
             name = f"{value_name}-{truth_name}-{acqf_name}-{cseed}-{eseed}"
 
             experiment_kwargs = experiment_fixed_kwargs.copy()
@@ -860,7 +851,6 @@ def get_experiments(params):
 
 
 def run_experiments(list_of_experiments, **kwargs):
-
     try:
         n_jobs = kwargs.pop("n_multiprocessing_jobs")
     except KeyError:

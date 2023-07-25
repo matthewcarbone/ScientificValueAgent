@@ -1,0 +1,7 @@
+!figure_BTO.ipynb
+!figure_BTO-2.ipynb
+!figure_sine2phase.ipynb
+!figure_xrd1dim.ipynb
+*.pdf
+*.svg
+*.pkl

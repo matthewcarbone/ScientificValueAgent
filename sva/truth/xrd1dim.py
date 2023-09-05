@@ -277,6 +277,17 @@ def xrd1dim_compute_metrics_all_acquisition_functions_and_LTB(
         all_metrics["Linear"].append(res)
     all_metrics["Linear"] = np.array(all_metrics["Linear"]).reshape(-1, 1)
 
+    all_metrics["Random"] = []
+    X = np.random.random(size=(metrics_grid_linear[-1],))
+    for N in tqdm(metrics_grid_linear, disable=disable_pbar):
+        res = metric_function(
+            X[:N],
+            linspace_points=grid_points,
+            use_only=use_only,
+        )
+        all_metrics["Random"].append(res)
+    all_metrics["Random"] = np.array(all_metrics["Random"]).reshape(-1, 1)
+
     return {
         "metrics": all_metrics,
         "metrics_grid": metrics_grid,

@@ -81,7 +81,7 @@ def limited_time_budget(N, dims):
     return np.array(list(product(*[arr for _ in range(dims)])))
 
 
-def random_sampling(N, dims):
+def random_sampling_budget(N, dims):
     """Returns a random sampling of the space. Points are returned in the range
     [0, 1).
 
@@ -201,6 +201,7 @@ def _compute_metrics_all_acquisition_functions_and_LTB(
         "interpolation_method": "linear",
     },
     disable_pbar=False,
+    dims=2,
 ):
     """Computes the metric provided across all data.
 
@@ -211,10 +212,13 @@ def _compute_metrics_all_acquisition_functions_and_LTB(
     metrics_grid : array_like, optional
         The n-grid for the metric.
     metrics_grid_linear : array_like, optional
-        The n-grid for the LTB metric.
+        The n-grid for the LTB metric. This is the number of points per
+        dimension. It is also used for the random control.
     metric_function : function, optional
     metric_function_kwargs : dict, optional
     disable_pbar : bool, optional
+    dims : int, optional
+        The number of dimensions to use.
 
     Returns
     -------
@@ -235,11 +239,20 @@ def _compute_metrics_all_acquisition_functions_and_LTB(
 
     all_metrics["Linear"] = []
     for N_per_dim in tqdm(metrics_grid_linear, disable=disable_pbar):
-        arr = limited_time_budget(N_per_dim, 2)
+        arr = limited_time_budget(N_per_dim, dims)
         res = metric_function(arr, **metric_function_kwargs)
         all_metrics["Linear"].append(res)
     all_metrics["Linear"] = np.array(all_metrics["Linear"]).reshape(-1, 1)
-    metrics_grid_linear = np.array(metrics_grid_linear) ** 2
+
+    all_metrics["Random"] = []
+    X = random_sampling_budget(metrics_grid_linear[-1], dims)
+    for N_per_dim in tqdm(metrics_grid_linear, disable=disable_pbar):
+        arr = X[: int(N_per_dim**2), :]
+        res = metric_function(arr, **metric_function_kwargs)
+        all_metrics["Random"].append(res)
+    all_metrics["Random"] = np.array(all_metrics["Random"]).reshape(-1, 1)
+
+    metrics_grid_linear = np.array(metrics_grid_linear) ** dims
 
     return {
         "metrics": all_metrics,

@@ -2,6 +2,7 @@
 !figure_BTO-2.ipynb
 !figure_sine2phase.ipynb
 !figure_xrd1dim.ipynb
+!figure_uvvis.ipynb
 *.pdf
 *.svg
 *.pkl

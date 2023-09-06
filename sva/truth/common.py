@@ -244,13 +244,24 @@ def _compute_metrics_all_acquisition_functions_and_LTB(
         all_metrics["Linear"].append(res)
     all_metrics["Linear"] = np.array(all_metrics["Linear"]).reshape(-1, 1)
 
-    all_metrics["Random"] = []
-    X = random_sampling_budget(metrics_grid_linear[-1], dims)
+    experiments = np.array(
+        [
+            random_sampling_budget(metrics_grid_linear[-1], dims)
+            for _ in range(300)
+        ]
+    )
+
+    tmp_metrics = []
     for N_per_dim in tqdm(metrics_grid_linear, disable=disable_pbar):
-        arr = X[: int(N_per_dim**2), :]
-        res = metric_function(arr, **metric_function_kwargs)
-        all_metrics["Random"].append(res)
-    all_metrics["Random"] = np.array(all_metrics["Random"]).reshape(-1, 1)
+        tmp_metrics.append(
+            [
+                metric_function(
+                    exp[: int(N_per_dim**2), :], **metric_function_kwargs
+                )
+                for exp in experiments
+            ]
+        )
+    all_metrics["Random"] = np.array(tmp_metrics)
 
     metrics_grid_linear = np.array(metrics_grid_linear) ** dims
 

@@ -428,7 +428,7 @@ class Experiment(MSONable):
         kernel_kwargs={"nu": 2.5},
         optimize_acqf_kwargs={"q": 1, "num_restarts": 5, "raw_samples": 20},
         experiment_seed=123,
-        record=[],
+        record=None,
         scale_inputs_MinMax=True,
         scale_outputs_Standard=True,
         name=None,
@@ -442,7 +442,10 @@ class Experiment(MSONable):
         self._optimize_acqf_kwargs = optimize_acqf_kwargs
         self._init_bounds()
         self._experiment_seed = experiment_seed
-        self._record = record
+        if record is None:
+            self._record = []
+        else:
+            self._record = record
         self._scale_inputs_MinMax = scale_inputs_MinMax
         self._scale_outputs_Standard = scale_outputs_Standard
         self._name = name
@@ -519,9 +522,20 @@ class Experiment(MSONable):
         return losses
 
     def _ask(self, gp, acquisition_function_kwargs):
+        bounds = torch.tensor(self._bounds).float().reshape(-1, 2).T
+        if self._acqf_signature.lower() == "random":
+            value = torch.tensor([0])
+            dims = bounds.shape[0]
+            sampled = torch.FloatTensor(np.random.random(size=(dims, 1)))
+            # sampled is 2 x 1
+            _max = bounds[1, :].reshape(dims, 1)
+            _min = bounds[0, :].reshape(dims, 1)
+            delta = _max - _min
+            sampled = sampled * delta + _min
+            return sampled, value
+
         _acqf = self.get_acquisition_function()
         acquisition_function = _acqf(gp, **acquisition_function_kwargs)
-        bounds = torch.tensor(self._bounds).float().reshape(-1, 2).T
         return optimize_acqf(
             acquisition_function,
             bounds=bounds,

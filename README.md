@@ -1,12 +1,16 @@
 # Scientific Value Agent
 
-NOTE: The code is currently only working with cpu. Make sure you run 
+[![image](https://zenodo.org/badge/DOI/10.48550/arXiv.2210.12260.svg)](https://doi.org/10.48550/arXiv.2307.13871)
+
+ℹ️ If you use the Scientific Value Agent, please consider citing our [work](https://doi.org/10.48550/arXiv.2307.13871)
+
+⚠️ NOTE: The code is currently only working with cpu. Make sure you run
 
 ```bash
 export CUDA_VISIBLE_DEVICES=""
 ```
 
-before running.
+(or similar) before any Gaussian Process training.
 
 ## Funding acknowledgement
 

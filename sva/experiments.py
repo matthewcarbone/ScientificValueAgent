@@ -136,12 +136,12 @@ class Data(MSONable):
     @classmethod
     def from_initial_conditions(
         cls,
-        truth,
-        value,
+        truth_function,
+        value_function,
         seed,
         how,
-        truth_kwargs=dict(),
-        value_kwargs=dict(),
+        truth_function_kwargs=dict(),
+        value_function_kwargs=dict(),
         xmin=0.0,
         xmax=1.0,
         points_per_dimension=3,
@@ -192,21 +192,17 @@ class Data(MSONable):
             observed = np.ones(shape=(1, ndim)) * np.inf  # Dummy
             X = next_closest_raster_scan_point(X, observed, allowed_X)
 
-        Y = np.array(
-            oracle(
-                X,
-                truth,
-                value,
-                truth_kwargs=truth_kwargs,
-                value_kwargs=value_kwargs,
-            )
-        ).reshape(-1, 1)
+        observations = truth_function(X, **truth_function_kwargs)
+        value = value_function(X, observations, **value_function_kwargs)
+        Y = np.array(value).reshape(-1, 1)  # Value itself
+
         return cls(
-            truth,
-            value,
-            truth_kwargs,
-            value_kwargs,
+            truth_function,
+            value_function,
+            truth_function_kwargs,
+            value_function_kwargs,
             X=X,
+            observations=observations,
             Y=Y,
             xmin=xmin,
             xmax=xmax,
@@ -222,6 +218,10 @@ class Data(MSONable):
     def X_MinMax_scaled(self):
         scaler = MinMaxScaler()
         return scaler.fit_transform(self.X)
+
+    @property
+    def observations(self):
+        return self._observations
 
     @property
     def Y(self):
@@ -279,11 +279,12 @@ class Data(MSONable):
 
     def __init__(
         self,
-        truth,
-        value,
-        truth_kwargs,
-        value_kwargs,
+        truth_function,
+        value_function,
+        truth_function_kwargs,
+        value_function_kwargs,
         X,
+        observations,
         Y,
         xmin,
         xmax,
@@ -291,11 +292,12 @@ class Data(MSONable):
         n_initial_points=None,
         allowed_X=None,
     ):
-        self._truth = truth
-        self._value = value
-        self._truth_kwargs = truth_kwargs
-        self._value_kwargs = value_kwargs
+        self._truth_function = truth_function
+        self._value_function = value_function
+        self._truth_function_kwargs = truth_function_kwargs
+        self._value_function_kwargs = value_function_kwargs
         self._X = X
+        self._observations = observations
         self._Y = Y
         self._xmin = xmin
         self._xmax = xmax
@@ -307,16 +309,20 @@ class Data(MSONable):
         assert self.Y.shape[0] == self.X.shape[0]
         self._allowed_X = allowed_X
 
-    def append(self, X):
+    def append(self, X, experimental_noise=None):
         X = X.reshape(-1, self._X.shape[1])
+        new_observation = self._truth_function(
+            X, **self._truth_function_kwargs
+        )
+        self._observations = np.concatenate(
+            [self._observations, new_observation], axis=0
+        )
+
         self._X = np.concatenate([self._X, X], axis=0)
+
         self._Y = np.array(
-            oracle(
-                self._X,
-                self._truth,
-                self._value,
-                self._truth_kwargs,
-                self._value_kwargs,
+            self._value_function(
+                self._X, self._observations, **self._value_function_kwargs
             )
         ).reshape(-1, 1)
 

@@ -525,7 +525,7 @@ class Experiment(MSONable):
         bounds = torch.tensor(self._bounds).float().reshape(-1, 2).T
         if self._acqf_signature.lower() == "random":
             value = torch.tensor([0])
-            dims = bounds.shape[0]
+            dims = bounds.shape[1]
             sampled = torch.FloatTensor(np.random.random(size=(dims, 1)))
             # sampled is 2 x 1
             _max = bounds[1, :].reshape(dims, 1)

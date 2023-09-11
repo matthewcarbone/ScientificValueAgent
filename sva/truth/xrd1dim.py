@@ -98,7 +98,8 @@ def _get_1d_phase_fractions(
     X = np.array(X)  # Type enforcement
     X = X.squeeze()
 
-    weights = np.zeros((4, X.shape[0]))
+    shape_value = 1 if X.shape == () else X.shape[0]
+    weights = np.zeros((4, shape_value))
     weights[0, :] += X <= b_start  # Pure A
     weights[1, :] += (a_stop <= X) & (X <= c_start)  # Pure B
     weights[2, :] += (b_stop <= X) & (X <= c_stop - 1)  # Pure C

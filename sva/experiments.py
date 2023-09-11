@@ -192,9 +192,10 @@ class Data(MSONable):
             observed = np.ones(shape=(1, ndim)) * np.inf  # Dummy
             X = next_closest_raster_scan_point(X, observed, allowed_X)
 
-        observations = truth(X, **truth_kwargs)
+        N_points = X.shape[0]
+        observations = truth(X, **truth_kwargs).reshape(N_points, -1)
         value_value = value(X, observations, **value_kwargs)
-        Y = np.array(value_value).reshape(-1, 1)  # Value itself
+        Y = np.array(value_value).reshape(-1, 1)
 
         return cls(
             truth,
@@ -220,10 +221,6 @@ class Data(MSONable):
         return scaler.fit_transform(self.X)
 
     @property
-    def observations(self):
-        return self._observations
-
-    @property
     def Y(self):
         return self._Y
 
@@ -239,6 +236,10 @@ class Data(MSONable):
     @property
     def Y0(self):
         return self._Y[: self._n_initial_points, :]
+
+    @property
+    def observations(self):
+        return self._observations
 
     @property
     def N(self):
@@ -309,18 +310,30 @@ class Data(MSONable):
         assert self.Y.shape[0] == self.X.shape[0]
         self._allowed_X = allowed_X
 
-    def append(self, X, experimental_noise=None):
-        X = X.reshape(-1, self._X.shape[1])
-        new_observation = self._truth(X, **self._truth_kwargs)
+    def append(self, X):
+        # Need to convert to numpy array here because of the way that Pytorch
+        # deals with arrays of size (1, 1)...
+        X = np.array(X).reshape(-1, self._X.shape[1])
+
+        # Get this particular observation
+        N_points = X.shape[0]
+        observations = self._truth(X, **self._truth_kwargs)
+        observations = observations.reshape(N_points, -1)
+
+        # Append all observations
+        # Yes this is probably expensive but for now it's fine!
         self._observations = np.concatenate(
-            [self._observations, new_observation], axis=0
+            [self._observations, observations], axis=0
         )
 
+        # Append the input positions
         self._X = np.concatenate([self._X, X], axis=0)
 
-        self._Y = np.array(
-            self._value(self._X, self._observations, **self._value_kwargs)
-        ).reshape(-1, 1)
+        # Now calculate the new value
+        value_value = self._value(
+            self._X, self._observations, **self._value_kwargs
+        )
+        self._Y = np.array(value_value).reshape(-1, 1)
 
 
 class UVData(Data):
@@ -527,7 +540,7 @@ class Experiment(MSONable):
         bounds = torch.tensor(self._bounds).float().reshape(-1, 2).T
         if self._acqf_signature.lower() == "random":
             value = torch.tensor([0])
-            dims = bounds.shape[1]
+            dims = bounds.shape[0]
             sampled = torch.FloatTensor(np.random.random(size=(dims, 1)))
             # sampled is 2 x 1
             _max = bounds[1, :].reshape(dims, 1)

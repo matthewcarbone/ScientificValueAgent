@@ -11,17 +11,25 @@ def gaussian(x, mu, sig, a):
     return a * np.exp(-np.power(x - mu, 2.0) / (2 * np.power(sig, 2.0)))
 
 
-@cache
-def _get_1d_phase_data():
+def _get_1d_phase_data(noise=0.1, noise_seed=None):
     """Construct 1-D phase diagram akin to
     |---A---|---A  B (linear)---|---B---|---B+C (quadratic)---|---C---|---D---|
     Where the dataset
 
+    Parameters
+    ----------
+    noise : float, optional
+        Noise parameter, scale of Gaussian noise additive to the phases.
+    noise_seed : None, optional
+        The seed for the noise. Defaults to None in order to replicate
+        irreducible noise from experiment.
+
     Returns
     -------
-    np.ndarray:
+    np.ndarray
         (4, N) array of data describing the phases
     """
+
     phases = np.zeros((4, 1000))
     x = np.linspace(0, 9, 1000)
     phases[0, :] += gaussian(x, 2, 0.03, 3) + gaussian(x, 6, 0.04, 1)
@@ -42,7 +50,19 @@ def _get_1d_phase_data():
         + gaussian(x, 8.5, 0.04, 0.4)
     )
 
-    return phases + np.random.normal(0, 0.1, phases.shape) ** 2
+    if noise_seed is not None:
+        np.random.seed(noise_seed)
+
+    return phases + np.random.normal(0, noise, phases.shape) ** 2
+
+
+@cache
+def _get_1d_phase_data_cached(noise=0.1, noise_seed=None):
+    return _get_1d_phase_data(noise, noise_seed)
+
+
+def _get_1d_phase_data_no_cache(noise):
+    return _get_1d_phase_data(noise, noise_seed=None)  # No seed here always
 
 
 def _get_1d_phase_fractions(
@@ -110,8 +130,11 @@ def _get_1d_phase_fractions(
     return weights
 
 
-def truth_xrd1dim(X):
-    phases = _get_1d_phase_data()
+def truth_xrd1dim(X, noise=0.1, noise_seed=123):
+    if noise_seed is not None:
+        phases = _get_1d_phase_data_cached(noise, noise_seed)
+    else:
+        phases = _get_1d_phase_data_no_cache(noise)
     weights = _get_1d_phase_fractions(X)
     return (phases.T @ weights).T
 

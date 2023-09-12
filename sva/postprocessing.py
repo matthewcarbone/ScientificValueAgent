@@ -11,7 +11,11 @@ def read_data(path):
     for file in Path(path).rglob("*.json"):
         with open(file, "r") as f:
             d = json.loads(json.load(f))
-        c = Experiment.from_dict(d)
+        try:
+            c = Experiment.from_dict(d)
+        except TypeError:
+            d["data"]["observations"] = None
+            c = Experiment.from_dict(d)
         results[str(c.name)] = c
     return results
 

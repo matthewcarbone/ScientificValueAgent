@@ -229,6 +229,24 @@ def residual_1d_phase_relative_mae(X, linspace_points=10_000, use_only=None):
     return np.nanmean(tmp)
 
 
+def random_sampling_budget(N):
+    """Returns a random sampling of the space. Points are returned in the range
+    [0, 1).
+
+    Parameters
+    ----------
+    N : int
+        The number of points to sample.
+
+    Returns
+    -------
+    np.ndarray
+    """
+
+    total_points = N
+    return np.random.random(size=(total_points,)) * 100.0
+
+
 def xrd1dim_compute_metrics_all_acquisition_functions_and_LTB(
     results_by_acqf,
     metrics_grid=list(range(3, 251, 10)),
@@ -301,16 +319,23 @@ def xrd1dim_compute_metrics_all_acquisition_functions_and_LTB(
         all_metrics["Linear"].append(res)
     all_metrics["Linear"] = np.array(all_metrics["Linear"]).reshape(-1, 1)
 
-    all_metrics["Random"] = []
-    X = np.random.random(size=(metrics_grid_linear[-1],))
+    experiments = np.array(
+        [random_sampling_budget(metrics_grid_linear[-1]) for _ in range(300)]
+    )
+
+    tmp_metrics = []
     for N in tqdm(metrics_grid_linear, disable=disable_pbar):
-        res = metric_function(
-            X[:N],
-            linspace_points=grid_points,
-            use_only=use_only,
+        tmp_metrics.append(
+            [
+                metric_function(
+                    exp[:N],
+                    linspace_points=grid_points,
+                    use_only=use_only,
+                )
+                for exp in experiments
+            ]
         )
-        all_metrics["Random"].append(res)
-    all_metrics["Random"] = np.array(all_metrics["Random"]).reshape(-1, 1)
+    all_metrics["Random"] = np.array(tmp_metrics)
 
     return {
         "metrics": all_metrics,

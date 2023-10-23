@@ -109,8 +109,8 @@ class SimpleSigmoid(Truth):
         self._a = a
 
     def _truth(self, x: np.ndarray) -> np.ndarray:
-        return 1.0 / (1.0 + np.exp(-self._a * x)) - 0.5
+        return 2.0 / (1.0 + np.exp(-self._a * x)) - 1.0
 
     def _dtruth(self, x: np.ndarray) -> np.ndarray:
         d = 1 + np.exp(-self._a * x)
-        return self._a * np.exp(-self._a * x) / d**2
+        return 2.0 * self._a * np.exp(-self._a * x) / d**2

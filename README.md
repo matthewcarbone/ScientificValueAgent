@@ -2,7 +2,7 @@
 
 [![image](https://zenodo.org/badge/DOI/10.48550/arXiv.2210.12260.svg)](https://doi.org/10.48550/arXiv.2307.13871)
 
-ℹ️ If you use the Scientific Value Agent, please consider citing our [work](https://doi.org/10.48550/arXiv.2307.13871)
+ℹ️ If you use the Scientific Value Agent, please consider citing our [work](https://doi.org/10.48550/arXiv.2307.13871). The software corresponding to this manuscript is tagged as [`v1.1.0`](https://github.com/matthewcarbone/ScientificValueAgent/releases/tag/v1.1.0).
 
 ⚠️ NOTE: The code is currently only working with cpu. Make sure you run
 

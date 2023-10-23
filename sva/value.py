@@ -7,7 +7,7 @@ import numpy as np
 from scipy.spatial import distance_matrix
 
 
-def default_asymmetric_value_function(X, Y, sd=None, multiplier=1.0):
+def svf(X, Y, sd=None, multiplier=1.0):
     """The value of two datasets, X and Y. Both X and Y must have the same
     number of rows. The returned result is a value of value for each of the
     data points.
@@ -42,35 +42,5 @@ def default_asymmetric_value_function(X, Y, sd=None, multiplier=1.0):
     Y_dist = distance_matrix(Y, Y)
 
     v = Y_dist * np.exp(-(X_dist**2) / sd**2 / 2.0)
-
-    return v.mean(axis=1)
-
-
-def symmetric_value_function(X, Y):
-    """A similar value function to the asymmetric ``value_function``.
-
-    Parameters
-    ----------
-    X : numpy.ndarray
-    Y : numpy.ndarray
-
-    Returns
-    -------
-    array_like
-        The value for each data point.
-    """
-
-    X_dist = distance_matrix(X, X)  # (N, N)
-
-    distance = X_dist.copy()
-    distance[distance == 0.0] = np.inf
-    sd = distance.min(axis=1, keepdims=True)  # (N, 1)
-
-    # Length scale
-    ls = sd * sd.T  # Symmetric piece (N, 1) * (1, N) = (N, N)
-
-    Y_dist = distance_matrix(Y, Y)
-
-    v = Y_dist * np.exp(-(X_dist**2) / ls / 2.0)
 
     return v.mean(axis=1)

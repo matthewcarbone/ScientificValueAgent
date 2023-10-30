@@ -1,18 +1,89 @@
 from abc import ABC, abstractmethod, abstractproperty
 from typing import Optional
 
+from monty.json import MSONable
 import numpy as np
 
+from sva.utils import get_random_points
 
-class Truth(ABC):
+
+class ExperimentData(MSONable):
+    """Container for sampled data during experiments. Does essentially nothing
+    except hold the data and provide methods for dealing with it, including
+    updating it and saving it to disk. Note that data contained here must
+    always be two-dimensional (x.ndim == 2).
+
+    Attributes
+    ----------
+    data : np.ndarray, optional
+    """
+
+    @property
+    def N(self):
+        return self._X.shape[0]
+
+    @property
+    def X(self):
+        return self._X
+
+    @property
+    def Y(self):
+        return self._Y
+
+    def __init__(self, X=None, Y=None):
+        self._X = X
+        self._Y = Y
+
+    def update_X_(self, X):
+        """Updates the current input data with new inputs.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Two-dimensional data to update the X values with.
+        """
+
+        assert X.ndim == 2
+        if self._X is not None:
+            self._X = np.concatenate([self._X, X], axis=0)
+        else:
+            self._X = X
+
+    def update_Y_(self, experiment):
+        """Updates the current output data with new outputs.
+
+        Parameters
+        ----------
+        callable
+            Must be callable and take a 2d input array as input.
+        """
+
+        assert self._X is not None
+
+        if self._Y is not None:
+            diff = self._X.shape[0] - self._Y.shape[0]
+            new_Y = experiment(self._X[-diff:])
+            self._Y = np.concatenate([self._Y, new_Y], axis=0)
+        else:
+            self._Y = experiment(self._X)
+
+
+class Experiment(ABC):
     """Abstract base class for a source of truth. These sources of truth are
     for a single modality."""
 
     @abstractproperty
-    def domain(self) -> Optional[np.ndarray]:
+    def valid_domain(self) -> Optional[np.ndarray]:
         """The domain of valid points in the input space. The returned array
         should be of shape (2, d), where d is the number of dimensions in the
         input space."""
+
+        raise NotImplementedError
+
+    @abstractproperty
+    def experimental_domain(self) -> Optional[np.ndarray]:
+        """The domain of valid points for the experimental campaigns. This is
+        always a subset or equal to the valid_domain."""
 
         raise NotImplementedError
 
@@ -61,9 +132,9 @@ class Truth(ABC):
         # Ensure that the input is in the bounds
         # Domain being None implies the domain is the entirety of the reals
         # This is a fast way to avoid the check
-        if self.domain is not None:
-            check1 = self.domain[0, :] <= x
-            check2 = x <= self.domain[1, :]
+        if self.valid_domain is not None:
+            check1 = self.valid_domain[0, :] <= x
+            check2 = x <= self.valid_domain[1, :]
             if not np.all(check1 & check2):
                 raise ValueError("Some inputs x were not in the domain")
 
@@ -94,23 +165,16 @@ class Truth(ABC):
         self._validate_output(y)
         return y
 
+    def random_inputs(self, n=1, seed=None):
+        """Runs n random input points."""
 
-class SimpleSigmoid(Truth):
-    """A simple 1d experimental response to a 1d input. This is a sigmoid
-    function centered at 0, with a range (-0.5, 0.5). The sharpness of the
-    sigmoid function is adjustable by setting the parameter a."""
+        return get_random_points(self.experimental_domain, n=n, seed=seed)
 
-    n_input_dim = 1
-    n_output_dim = 1
-    # domain = np.array([-np.inf, np.inf]).reshape(2, 1)
-    domain = None  # Equivalent to the above
+    def update_data_(self, x):
+        self._data.update_X_(x)
+        self._data.update_Y_(self)
 
-    def __init__(self, a: float = 10.0) -> None:
-        self._a = a
+    def __call__(self, x):
+        """Alias for truth."""
 
-    def _truth(self, x: np.ndarray) -> np.ndarray:
-        return 2.0 / (1.0 + np.exp(-self._a * x)) - 1.0
-
-    def _dtruth(self, x: np.ndarray) -> np.ndarray:
-        d = 1 + np.exp(-self._a * x)
-        return 2.0 * self._a * np.exp(-self._a * x) / d**2
+        return self.truth(x)

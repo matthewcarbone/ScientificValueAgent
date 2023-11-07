@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod, abstractproperty
-from typing import Optional
+from typing import Optional, Union, Callable
 
 from monty.json import MSONable
 import numpy as np
@@ -11,12 +11,7 @@ class ExperimentData(MSONable):
     """Container for sampled data during experiments. Does essentially nothing
     except hold the data and provide methods for dealing with it, including
     updating it and saving it to disk. Note that data contained here must
-    always be two-dimensional (x.ndim == 2).
-
-    Attributes
-    ----------
-    data : np.ndarray, optional
-    """
+    always be two-dimensional (x.ndim == 2)."""
 
     @property
     def N(self):
@@ -68,7 +63,7 @@ class ExperimentData(MSONable):
             self._Y = experiment(self._X)
 
 
-class Experiment(ABC):
+class ExperimentMixin(ABC):
     """Abstract base class for a source of truth. These sources of truth are
     for a single modality."""
 
@@ -108,6 +103,14 @@ class Experiment(ABC):
         function for all rows of the provided x input."""
 
         raise NotImplementedError
+
+    @property
+    def noise(self) -> Optional[Union[Callable, float, np.ndarray, list]]:
+        """Gaussian noise scale. Must be broadcast-compatible with the output
+        of self.truth. Can also be None, indicating no noise. Note that this
+        is the standard deviation, not the variance."""
+
+        return None
 
     def _dtruth(self, x: np.ndarray) -> np.ndarray:
         """The derivative of the truth value with respect to x. May not be
@@ -150,7 +153,7 @@ class Experiment(ABC):
             raise ValueError(f"y second dimension must be {self.n_output_dim}")
 
     def truth(self, x: np.ndarray) -> np.ndarray:
-        """Access the results of an "experiment"."""
+        """Access the noiseless results of an "experiment"."""
 
         self._validate_input(x)
         y = self._truth(x)
@@ -158,7 +161,7 @@ class Experiment(ABC):
         return y
 
     def dtruth(self, x: np.ndarray) -> np.ndarray:
-        """Access the derivative of the results of the experiment."""
+        """Access the derivative of the noiseless results of the experiment."""
 
         self._validate_input(x)
         y = self._dtruth(x)
@@ -175,6 +178,23 @@ class Experiment(ABC):
         self._data.update_Y_(self)
 
     def __call__(self, x):
-        """Alias for truth."""
+        """The (possibly noisy) result of the experiment."""
 
-        return self.truth(x)
+        if self.noise is None:
+            return self.truth(x)
+
+        if isinstance(self.noise, Callable):
+            noise = self.noise(x)
+            return self.truth(x) + np.random.normal(scale=noise, size=x.shape)
+
+        if isinstance(self.noise, float):
+            pass
+        elif isinstance(self.noise, np.ndarray):
+            assert self.noise.ndim == 1
+            assert len(self.noise) == self.n_output_dim
+        elif isinstance(self.noise, list):
+            assert len(self.noise) == self.n_output_dim
+        else:
+            raise ValueError("Incompatible noise type")
+
+        return self.truth(x) + np.random.normal(scale=self.noise, size=x.shape)

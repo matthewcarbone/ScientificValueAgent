@@ -3,8 +3,17 @@
 Value functions should always have the signature: value(X, Y, **kwargs)
 """
 
+from abc import ABC, abstractmethod
+
+from monty.json import MSONable
 import numpy as np
 from scipy.spatial import distance_matrix
+
+
+class BaseValue(ABC):
+    @abstractmethod
+    def __call__(self, X, Y):
+        ...
 
 
 def svf(X, Y, sd=None, multiplier=1.0):
@@ -33,8 +42,8 @@ def svf(X, Y, sd=None, multiplier=1.0):
 
     X_dist = distance_matrix(X, X)
 
+    # If sd is None, we automatically determine the length scale from the data
     if sd is None:
-        # Automatic determination
         distance = X_dist.copy()
         distance[distance == 0.0] = np.inf
         sd = distance.min(axis=1).reshape(1, -1) * multiplier
@@ -44,3 +53,12 @@ def svf(X, Y, sd=None, multiplier=1.0):
     v = Y_dist * np.exp(-(X_dist**2) / sd**2 / 2.0)
 
     return v.mean(axis=1)
+
+
+class SVF(BaseValue, MSONable):
+    def __init__(self, sd=None, multiplier=None):
+        self._sd = sd
+        self._multiplier = multiplier
+
+    def __call__(self, X, Y):
+        return svf(X, Y, self._sd, self._multiplier)

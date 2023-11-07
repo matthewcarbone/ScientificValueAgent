@@ -1,6 +1,171 @@
+from itertools import product
+from time import perf_counter
+
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from mpl_toolkits import axes_grid1
+import numpy as np
+from scipy.spatial import distance_matrix
+
+
+class Timer:
+    def __enter__(self):
+        self._time = perf_counter()
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._time = perf_counter() - self._time
+
+    @property
+    def dt(self):
+        return self._time
+
+
+def random_indexes(array_size, samples=10, seed=None):
+    """Executes a random downsampling of the provided array along the first
+    axis, without replacement.
+
+    Parameters
+    ----------
+    array_size : int
+        The total number of possible points to sample from
+    samples : int, optional
+    seed : None, optional
+        Random seed for ensuring reproducibility.
+
+    Returns
+    -------
+    np.ndarray
+    """
+
+    if seed is not None:
+        np.random.seed(seed)
+    return np.random.choice(range(array_size), size=samples, replace=False)
+
+
+def scale_by_domain(x, domain):
+    """Scales provided data x by the bounds provided in the domain. Note that
+    all dimensions must perfectly match.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        The input data of shape (N, d). This data should be scaled between 0
+        and 1.
+    domain : np.ndarray
+        The domain to scale to. Should be of shape (2, d), where domain[0, :]
+        is the minimum along each axis and domain[1, :] is the maximum.
+
+    Returns
+    -------
+    np.ndarray
+        The scaled data of shape (N, d).
+    """
+
+    # TODO replace with raises
+    assert x.ndim == 2
+    assert domain.shape[1] == x.shape[1]
+    assert domain.shape[0] == 2
+    assert x.min() >= 0.0
+    assert x.max() <= 1.0
+    return (domain[1, :] - domain[0, :]) * x + domain[0, :]
+
+
+def get_grid(points_per_dimension, domain):
+    """Gets a grid of equally spaced points on each dimension.
+
+    Parameters
+    ----------
+    points_per_dimension : int or list
+        The number of points per dimension. If int, assumed to be 1d.
+    domain : np.ndarray
+        A 2 x d array indicating the domain along each axis.
+
+    Returns
+    -------
+    np.ndarray
+        The available points for sampling.
+    """
+
+    if isinstance(points_per_dimension, int):
+        points_per_dimension = [points_per_dimension] * domain.shape[1]
+    gen = product(*[np.linspace(0.0, 1.0, nn) for nn in points_per_dimension])
+    return scale_by_domain(np.array([xx for xx in gen]), domain)
+
+
+def get_random_points(domain, n=1, seed=None):
+    """Gets a random selection of points on a provided domain. The dimension
+    of the data is inferred from the shape of the domain.
+
+    Parameters
+    ----------
+    domain : np.ndarray
+        The domain to scale to. Should be of shape (2, d).
+    n : int
+        Total number of points.
+    seed : int, optional
+        Random seed to use for reproducibility.
+
+    Returns
+    -------
+    np.ndarray
+    """
+
+    if seed is not None:
+        np.random.seed(seed)
+    X = np.random.random(size=(n, domain.shape[1]))
+    return scale_by_domain(X, domain)
+
+
+def next_closest_raster_scan_point(
+    proposed_points, observed_points, possible_coordinates, eps=1e-8
+):
+    """A helper function which determines the closest grid point for every
+    proposed points, under the constraint that the proposed point is not
+    present in the currently observed points, given possible coordinates.
+
+    Parameters
+    ----------
+    proposed_points : array_like
+        The proposed points. Should be of shape N x d, where d is the dimension
+        of the space (e.g. 2-dimensional for a 2d raster). N is the number of
+        proposed points (i.e. the batch size).
+    observed_points : array_like
+        Points that have been previously observed. N1 x d, where N1 is the
+        number of previously observed points.
+    possible_coordinates : array_like
+        A grid of possible coordinates, options to choose from. N2 x d, where
+        N2 is the number of coordinates on the grid.
+    eps : float, optional
+        The cutoff for determining that two points are the same, as computed
+        by the L2 norm via scipy's ``distance_matrix``.
+
+    Returns
+    -------
+    numpy.ndarray
+        The new proposed points. REturns None if no new points were found.
+    """
+
+    assert proposed_points.shape[1] == observed_points.shape[1]
+    assert proposed_points.shape[1] == possible_coordinates.shape[1]
+
+    D2 = distance_matrix(observed_points, possible_coordinates) > eps
+    D2 = np.all(D2, axis=0)
+
+    actual_points = []
+    for possible_point in proposed_points:
+        p = possible_point.reshape(1, -1)
+        D = distance_matrix(p, possible_coordinates).squeeze()
+        argsorted = np.argsort(D)
+        for index in argsorted:
+            if D2[index]:
+                actual_points.append(possible_coordinates[index])
+                break
+
+    if len(actual_points) == 0:
+        return None
+
+    return np.array(actual_points)
 
 
 def get_function_from_signature(signature):
@@ -21,7 +186,7 @@ def get_function_from_signature(signature):
     return eval(function)
 
 
-def set_defaults(labelsize=12, dpi=250):
+def set_mpl_defaults(labelsize=12, dpi=250):
     mpl.rcParams["mathtext.fontset"] = "stix"
     mpl.rcParams["font.family"] = "STIXGeneral"
     mpl.rcParams["text.usetex"] = True
@@ -32,7 +197,7 @@ def set_defaults(labelsize=12, dpi=250):
     plt.rcParams["figure.figsize"] = (3, 2)
 
 
-def set_grids(
+def set_mpl_grids(
     ax,
     minorticks=True,
     grid=False,

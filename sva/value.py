@@ -56,7 +56,7 @@ def svf(X, Y, sd=None, multiplier=1.0):
 
 
 class SVF(BaseValue, MSONable):
-    def __init__(self, sd=None, multiplier=None):
+    def __init__(self, sd=None, multiplier=1.0):
         self._sd = sd
         self._multiplier = multiplier
 

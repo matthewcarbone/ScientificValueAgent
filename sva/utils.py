@@ -1,4 +1,6 @@
+from importlib import import_module
 from itertools import product
+import json
 from time import perf_counter
 
 import matplotlib.pyplot as plt
@@ -62,17 +64,27 @@ def scale_by_domain(x, domain):
         The scaled data of shape (N, d).
     """
 
-    # TODO replace with raises
-    assert x.ndim == 2
-    assert domain.shape[1] == x.shape[1]
-    assert domain.shape[0] == 2
-    assert x.min() >= 0.0
-    assert x.max() <= 1.0
+    if x.ndim != 2:
+        raise ValueError("Dimension of x must be == 2")
+
+    if domain.shape[1] != x.shape[1]:
+        raise ValueError("Domain and x shapes mismatched")
+
+    if domain.shape[0] != 2:
+        raise ValueError("Domain shape not equal to 2")
+
+    if x.min() < 0.0:
+        raise ValueError("x.min() < 0 (should be >= 0)")
+
+    if x.max() > 1.0:
+        raise ValueError("x.max() > 0 (should be <= 0)")
+
     return (domain[1, :] - domain[0, :]) * x + domain[0, :]
 
 
-def get_grid(points_per_dimension, domain):
+def get_coordinates(points_per_dimension, domain):
     """Gets a grid of equally spaced points on each dimension.
+    Returns these results in coordinate representation.
 
     Parameters
     ----------
@@ -146,6 +158,7 @@ def next_closest_raster_scan_point(
         The new proposed points. REturns None if no new points were found.
     """
 
+    # TODO: replace this by raise ValueError statements
     assert proposed_points.shape[1] == observed_points.shape[1]
     assert proposed_points.shape[1] == possible_coordinates.shape[1]
 
@@ -182,8 +195,8 @@ def get_function_from_signature(signature):
     """
 
     module, function = signature.split(":")
-    exec(f"from {module} import {function}")
-    return eval(function)
+    module = import_module(module)
+    return getattr(module, function)
 
 
 def set_mpl_defaults(labelsize=12, dpi=250):
@@ -258,3 +271,24 @@ def add_colorbar(
         )
         cbar.set_ticklabels(integral_ticks)
     return cbar
+
+
+def save_json(d, path):
+    with open(path, "w") as outfile:
+        json.dump(d, outfile, indent=4, sort_keys=True)
+
+
+def read_json(path):
+    """
+    Test
+
+    test
+
+    Parameters
+    ----------
+    path : os.PathLike
+        Path to the json file to read.
+    """
+    with open(path, "r") as infile:
+        dat = json.load(infile)
+    return dat

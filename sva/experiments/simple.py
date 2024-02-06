@@ -1,7 +1,15 @@
+from functools import cached_property
+
+from attrs import define, field, validators
 import numpy as np
 from monty.json import MSONable
 
-from sva.experiments.base import ExperimentMixin, ExperimentData
+from sva.experiments.base import (
+    ExperimentMixin,
+    ExperimentData,
+    ExperimentProperties,
+    NOISE_TYPES,
+)
 from ._gpax import (
     low_fidelity_sinusoidal,
     high_fidelity_sinusoidal,
@@ -9,44 +17,45 @@ from ._gpax import (
 )
 
 
-# Excellent test functions
-# http://www.sfu.ca/~ssurjano/optimization.html
-
-
-class SimpleSigmoidExperiment(ExperimentMixin, MSONable):
+@define
+class SimpleSigmoid(ExperimentMixin, MSONable):
     """A simple 1d experimental response to a 1d input. This is a sigmoid
     function centered at 0, with a range (-0.5, 0.5). The sharpness of the
     sigmoid function is adjustable by setting the parameter a."""
 
-    n_input_dim = 1
-    n_output_dim = 1
-    valid_domain = None
-    experimental_domain = np.array([-2.0, 2.0]).reshape(2, 1)
-
-    @property
-    def noise(self):
-        return self._noise
-
-    def __init__(self, a=10.0, noise=None, data=ExperimentData()):
-        self._a = a
-        self._noise = noise
-        self._data = data
+    properties = field(
+        factory=lambda: ExperimentProperties(
+            n_input_dim=1,
+            n_output_dim=1,
+            valid_domain=None,
+            experimental_domain=np.array([-2.0, 2.0]).reshape(2, 1),
+        )
+    )
+    a = field(default=10.0, validator=validators.instance_of(float))
+    noise = field(default=None, validator=validators.instance_of(NOISE_TYPES))
+    data = field(factory=lambda: ExperimentData())
 
     def _truth(self, x):
-        return 2.0 / (1.0 + np.exp(-self._a * x)) - 1.0
+        return 2.0 / (1.0 + np.exp(-self.a * x)) - 1.0
 
     def _dtruth(self, x):
-        e = np.exp(-self._a * x)
+        e = np.exp(-self.a * x)
         d = 1.0 + e
-        return 2.0 * self._a * e / d**2
+        return 2.0 * self.a * e / d**2
 
 
-class WavySinusoidalGPax(ExperimentMixin, MSONable):
-
-    n_input_dim = 1
-    n_output_dim = 2
-    valid_domain = None
-    experimental_domain = np.array([0.0, 100.0]).reshape(2, 1)
+@define
+class _WavySinusoidalGPaxMixin:
+    properties = field(
+        factory=lambda: ExperimentProperties(
+            n_input_dim=1,
+            n_output_dim=1,
+            valid_domain=None,
+            experimental_domain=np.array([0.0, 100.0]).reshape(2, 1),
+        )
+    )
+    noise = field(default=None, validator=validators.instance_of(NOISE_TYPES))
+    data = field(factory=lambda: ExperimentData())
 
     @staticmethod
     def get_default_dataset():
@@ -60,10 +69,94 @@ class WavySinusoidalGPax(ExperimentMixin, MSONable):
         """
         return get_gpax_sinusoidal_dataset()
 
-    def __init__(self, data=ExperimentData()):
-        self._data = data
+
+@define
+class WavySinusoidalGPaxLowFidelity(
+    _WavySinusoidalGPaxMixin, ExperimentMixin, MSONable
+):
+    def _truth(self, x):
+        return low_fidelity_sinusoidal(x, noise=0.0)
+
+
+@define
+class WavySinusoidalGPaxHighFidelity(
+    _WavySinusoidalGPaxMixin, ExperimentMixin, MSONable
+):
+    def _truth(self, x):
+        return high_fidelity_sinusoidal(x, noise=0.0)
+
+
+@define
+class NegatedGramacyLeeFunction(ExperimentMixin, MSONable):
+    """Maximum is approximately 0.548563."""
+
+    properties = field(
+        factory=lambda: ExperimentProperties(
+            n_input_dim=1,
+            n_output_dim=1,
+            valid_domain=None,
+            experimental_domain=np.array([0.5, 2.5]).reshape(2, 1),
+        )
+    )
+    noise = field(default=None, validator=validators.instance_of(NOISE_TYPES))
+    data = field(factory=lambda: ExperimentData())
 
     def _truth(self, x):
-        low = low_fidelity_sinusoidal(x, noise=self._noise)
-        high = high_fidelity_sinusoidal(x, noise=self._noise)
-        return np.array([low, high]).T
+        t1 = -np.sin(10.0 * np.pi * x) / 2.0 / (x + 1e-8 * np.sign(x))
+        t2 = -((x - 1.0) ** 4)
+        return t1 + t2
+
+    def _dtruth(self, x):
+        t1 = -4.0 * (x - 1.0) ** 3
+        t2 = -5.0 * np.pi * np.cos(10.0 * np.pi * x) / x
+        t3 = np.sin(10.0 * np.pi * x) / 2.0 / x**2
+        return t1 + t2 + t3
+
+
+# def _growing_noisy_function_gpytorch(x):
+#     return np.cos(x * 2.0 * np.pi) + np.random.normal(size=x.shape) * x**3
+
+
+# class GrowingNoisyFunctionGPyTorch(ExperimentMixin, MSONable):
+#     """
+
+#     train_x = torch.linspace(0, 1, 100)
+#     train_y = torch.cos(train_x * 2 * math.pi) + torch.randn(100).mul(train_x.pow(3) * 1.)
+
+#     fig, ax = plt.subplots(1, 1, figsize=(5, 3))
+#     ax.scatter(train_x, train_y, c='k', marker='.', label="Data")
+#     ax.set(xlabel="x", ylabel="y")
+#     """
+
+#     @staticmethod
+#     def get_default_dataset():
+#         np.random.seed(123)
+#         train_x = np.linspace(0, 1, 100)
+#         train_y = _growing_noisy_function_gpytorch(train_x)
+#         return train_x.reshape(-1, 1), train_y.reshape(-1, 1)
+
+#     def _truth(self, x):
+#         y = _growing_noisy_function_gpytorch(x)
+#         return y.reshape(-1, 1)
+
+
+@define
+class Simple2d(ExperimentMixin, MSONable):
+    properties = field(
+        factory=lambda: ExperimentProperties(
+            n_input_dim=2,
+            n_output_dim=1,
+            valid_domain=None,
+            experimental_domain=np.array([[-4.0, 5.0], [-5.0, 4.0]]).T,
+        )
+    )
+    noise = field(default=None, validator=validators.instance_of(NOISE_TYPES))
+    data = field(factory=lambda: ExperimentData())
+
+    def _truth(self, X):
+        x = X[:, 0]
+        y = X[:, 1]
+        res = (1 - x / 3.0 + x**5 + y**5) * np.exp(
+            -(x**2) - y**2
+        ) + 2.0 * np.exp(-((x - 2) ** 2) - (y + 4) ** 2)
+        return res.reshape(-1, 1)

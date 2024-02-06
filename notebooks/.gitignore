@@ -1,9 +1,3 @@
-!figure_BTO.ipynb
-!figure_BTO-2.ipynb
-!figure_sine2phase.ipynb
-!figure_xrd1dim.ipynb
-!figure_uvvis.ipynb
-!test_xrd1dim_beta0.ipynb
 *.pdf
 *.svg
 *.pkl

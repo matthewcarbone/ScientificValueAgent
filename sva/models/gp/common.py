@@ -1,5 +1,9 @@
 """Common helper functions for all Gaussian Process models."""
 
+from pathlib import Path
+
+from sva.utils import save_json, read_json
+
 
 def set_eval_(gp):
     """Sets a Gaussian Process model to evaluation mode.
@@ -46,3 +50,14 @@ def get_model_hyperparameters(model):
         p1 = p[1].detach().numpy()
         d[p0] = p1
     return d
+
+
+class SaveLoadMixin:
+    def save():
+        ...
+
+    @classmethod
+    def load(cls, path):
+        d = read_json(path)
+        stem = Path(path).stem
+        model_path = f"{stem}.pt"

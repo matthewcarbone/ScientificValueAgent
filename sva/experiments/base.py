@@ -1,35 +1,34 @@
 from abc import ABC, abstractmethod, abstractproperty
+from attrs import define, field, frozen, validators
 from typing import Optional, Union, Callable
 
 from monty.json import MSONable
 import numpy as np
 
-from sva.utils import get_random_points
+from sva.utils import get_random_points, get_coordinates
 
 
+@define
 class ExperimentData(MSONable):
     """Container for sampled data during experiments. Does essentially nothing
     except hold the data and provide methods for dealing with it, including
     updating it and saving it to disk. Note that data contained here must
     always be two-dimensional (x.ndim == 2)."""
 
+    X: np.ndarray = field(default=None)
+    Y: np.ndarray = field(default=None)
+
     @property
     def N(self):
-        return self._X.shape[0]
+        return self.X.shape[0]
 
     @property
-    def X(self):
-        return self._X
+    def is_initialized(self):
+        if self.X is None and self.Y is None:
+            return False
+        return True
 
-    @property
-    def Y(self):
-        return self._Y
-
-    def __init__(self, X=None, Y=None):
-        self._X = X
-        self._Y = Y
-
-    def update_X_(self, X):
+    def update_X(self, X):
         """Updates the current input data with new inputs.
 
         Parameters
@@ -39,12 +38,12 @@ class ExperimentData(MSONable):
         """
 
         assert X.ndim == 2
-        if self._X is not None:
-            self._X = np.concatenate([self._X, X], axis=0)
+        if self.X is not None:
+            self.X = np.concatenate([self.X, X], axis=0)
         else:
-            self._X = X
+            self.X = X
 
-    def update_Y_(self, experiment):
+    def update_Y(self, experiment):
         """Updates the current output data with new outputs.
 
         Parameters
@@ -53,14 +52,17 @@ class ExperimentData(MSONable):
             Must be callable and take a 2d input array as input.
         """
 
-        assert self._X is not None
+        assert self.X is not None
 
-        if self._Y is not None:
-            diff = self._X.shape[0] - self._Y.shape[0]
-            new_Y = experiment(self._X[-diff:])
-            self._Y = np.concatenate([self._Y, new_Y], axis=0)
+        if self.Y is not None:
+            diff = self.X.shape[0] - self.Y.shape[0]
+            new_Y = experiment(self.X[-diff:])
+            self.Y = np.concatenate([self.Y, new_Y], axis=0)
         else:
-            self._Y = experiment(self._X)
+            self.Y = experiment(self.X)
+
+
+NOISE_TYPES = (Callable, float, np.ndarray, list, type(None))
 
 
 class ExperimentMixin(ABC):
@@ -68,34 +70,16 @@ class ExperimentMixin(ABC):
     for a single modality."""
 
     @abstractproperty
-    def valid_domain(self) -> Optional[np.ndarray]:
-        """The domain of valid points in the input space. The returned array
-        should be of shape (2, d), where d is the number of dimensions in the
-        input space."""
-
-        raise NotImplementedError
+    def noise(self):
+        ...
 
     @abstractproperty
-    def experimental_domain(self) -> Optional[np.ndarray]:
-        """The domain of valid points for the experimental campaigns. This is
-        always a subset or equal to the valid_domain."""
-
-        raise NotImplementedError
+    def properties(self):
+        ...
 
     @abstractproperty
-    def n_input_dim(self) -> int:
-        raise NotImplementedError
-
-    @abstractproperty
-    def n_output_dim(self) -> int:
-        raise NotImplementedError
-
-    @property
-    def expense(self) -> float:
-        """The user-defined expense of the experiment. Defaults to 1 "unit" of
-        time, money, or whatever."""
-
-        return 1.0
+    def data(self):
+        ...
 
     @abstractmethod
     def _truth(self, x: np.ndarray) -> np.ndarray:
@@ -103,14 +87,6 @@ class ExperimentMixin(ABC):
         function for all rows of the provided x input."""
 
         raise NotImplementedError
-
-    @property
-    def noise(self) -> Optional[Union[Callable, float, np.ndarray, list]]:
-        """Gaussian noise scale. Must be broadcast-compatible with the output
-        of self.truth. Can also be None, indicating no noise. Note that this
-        is the standard deviation, not the variance."""
-
-        return None
 
     def _dtruth(self, x: np.ndarray) -> np.ndarray:
         """The derivative of the truth value with respect to x. May not be
@@ -122,35 +98,37 @@ class ExperimentMixin(ABC):
         )
 
     def _validate_input(self, x):
-
         # Ensure x has the right shape
         if not x.ndim == 2:
             raise ValueError("x must have shape (N, d)")
 
         # Ensure that the second dimension of x is the right size for the
         # chosen experiment
-        if not x.shape[1] == self.n_input_dim:
-            raise ValueError(f"x second dimension must be {self.n_input_dim}")
+        if not x.shape[1] == self.properties.n_input_dim:
+            raise ValueError(
+                f"x second dimension must be {self.properties.n_input_dim}"
+            )
 
         # Ensure that the input is in the bounds
         # Domain being None implies the domain is the entirety of the reals
         # This is a fast way to avoid the check
-        if self.valid_domain is not None:
-            check1 = self.valid_domain[0, :] <= x
-            check2 = x <= self.valid_domain[1, :]
+        if self.properties.valid_domain is not None:
+            check1 = self.properties.valid_domain[0, :] <= x
+            check2 = x <= self.properties.valid_domain[1, :]
             if not np.all(check1 & check2):
                 raise ValueError("Some inputs x were not in the domain")
 
     def _validate_output(self, y):
-
         # Ensure y has the right shape
         if not y.ndim == 2:
             raise ValueError("y must have shape (N, d')")
 
         # Assert that the second dimension of the output has the right size for
         # the chosen experiment
-        if not y.shape[1] == self.n_output_dim:
-            raise ValueError(f"y second dimension must be {self.n_output_dim}")
+        if not y.shape[1] == self.properties.n_output_dim:
+            raise ValueError(
+                f"y second dimension must be {self.properties.n_output_dim}"
+            )
 
     def truth(self, x: np.ndarray) -> np.ndarray:
         """Access the noiseless results of an "experiment"."""
@@ -171,11 +149,78 @@ class ExperimentMixin(ABC):
     def random_inputs(self, n=1, seed=None):
         """Runs n random input points."""
 
-        return get_random_points(self.experimental_domain, n=n, seed=seed)
+        return get_random_points(
+            self.properties.experimental_domain, n=n, seed=seed
+        )
 
-    def update_data_(self, x):
-        self._data.update_X_(x)
-        self._data.update_Y_(self)
+    def get_dense_coordinates(self, ppd, domain=None):
+        """Gets a set of dense coordinates.
+
+        Parameters
+        ----------
+        ppd : int or list
+            Points per dimension.
+
+        Returns
+        -------
+        np.ndarray
+        """
+
+        if domain is None:
+            domain = self.properties.experimental_domain
+        return get_coordinates(ppd, domain)
+
+    def get_experimental_domain_mpl_extent(self):
+        """This is a helper for getting the "extent" for matplotlib's
+        imshow.
+        """
+
+        if self.properties.n_input_dim != 2:
+            raise NotImplementedError(
+                "get_mpl_extent only implemented for 2d inputs."
+            )
+
+        x0 = self.properties.experimental_domain[0, 0]
+        x1 = self.properties.experimental_domain[1, 0]
+
+        y0 = self.properties.experimental_domain[0, 1]
+        y1 = self.properties.experimental_domain[1, 1]
+
+        return [x0, x1, y0, y1]
+
+    def update_data(self, x):
+        """Helper method for updating the data attribute with new data.
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+        """
+
+        self.data.update_X(x)
+        self.data.update_Y(self)
+
+    def initialize_data(self, n, seed=None, protocol="random"):
+        """Initializes the X data via some provided protocol.
+
+        Parameters
+        ----------
+        n : int
+            The number of points to use initially.
+        seed : int
+            The random seed to ensure reproducibility.
+        protocol : str, optional
+        """
+
+        match protocol:
+            case "random":
+                X = self.random_inputs(n=n, seed=seed)
+
+            case _:
+                raise NotImplementedError(
+                    f"Unknown provided protocol {protocol}"
+                )
+
+        self.update_data(X)
 
     def __call__(self, x):
         """The (possibly noisy) result of the experiment."""
@@ -191,10 +236,23 @@ class ExperimentMixin(ABC):
             pass
         elif isinstance(self.noise, np.ndarray):
             assert self.noise.ndim == 1
-            assert len(self.noise) == self.n_output_dim
+            assert len(self.noise) == self.properties.n_output_dim
         elif isinstance(self.noise, list):
-            assert len(self.noise) == self.n_output_dim
+            assert len(self.noise) == self.properties.n_output_dim
         else:
             raise ValueError("Incompatible noise type")
 
         return self.truth(x) + np.random.normal(scale=self.noise, size=x.shape)
+
+
+@frozen
+class ExperimentProperties(MSONable):
+    """Defines the core set of experiment properties, which are frozen after
+    setting."""
+
+    n_input_dim = field(validator=validators.instance_of(int))
+    n_output_dim = field(validator=validators.instance_of(int))
+    valid_domain = field(
+        validator=validators.instance_of((type(None), np.ndarray))
+    )
+    experimental_domain = field(validator=validators.instance_of(np.ndarray))

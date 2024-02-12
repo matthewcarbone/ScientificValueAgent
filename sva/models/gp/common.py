@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from sva.utils import save_json, read_json
+from sva.utils import read_json
 
 
 def set_eval_(gp):
@@ -53,8 +53,8 @@ def get_model_hyperparameters(model):
 
 
 class SaveLoadMixin:
-    def save():
-        ...
+
+    def save(): ...
 
     @classmethod
     def load(cls, path):

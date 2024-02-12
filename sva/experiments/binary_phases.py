@@ -1,9 +1,19 @@
 import warnings
 
 import numpy as np
+from attrs import field, validators, define
+from monty.json import MSONable
+
+from sva.experiments.base import (
+    NOISE_TYPES,
+    ExperimentData,
+    ExperimentMixin,
+    ExperimentProperties,
+)
 
 
-def mu_Gaussians(p, E=np.linspace(-1, 1, 100), x0=0.5, sd=0.05):
+E_GRID = np.linspace(-1, 1, 100)
+def mu_Gaussians(p, E=E_GRID, x0=0.5, sd=0.05):
     """Returns a dummy "spectrum" which is just two Gaussian functions. The
     proportion of the two functions is goverened by ``p``.
 
@@ -44,6 +54,21 @@ def phase_1_sine_on_2d_raster(x, y, x0=0.5, a=100.0):
     return sigmoid(distance, x0, a)
 
 
-def truth_sine2phase(X):
-    phase_1 = [phase_1_sine_on_2d_raster(*c) for c in X]
-    return np.array([mu_Gaussians(p) for p in phase_1])
+@define
+class Sine2Phase(ExperimentMixin, MSONable):
+    properties = field(
+        factory=lambda: ExperimentProperties(
+            n_input_dim=2,
+            n_output_dim=len(E_GRID),
+            valid_domain=None,
+            experimental_domain=np.array([[0.0, 1.0], [0.0, 1.0]]).T,
+        )
+    )
+    noise = field(default=None, validator=validators.instance_of(NOISE_TYPES))
+    data = field(factory=lambda: ExperimentData())
+    x0 = field(default=0.5)
+    a = field(default=100.0)
+
+    def _truth(self, x):
+        phase_1 = [phase_1_sine_on_2d_raster(*c, self.x0, self.a) for c in x]
+        return np.array([mu_Gaussians(p) for p in phase_1])

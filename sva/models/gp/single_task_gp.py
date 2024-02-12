@@ -2,21 +2,21 @@
 botorch."""
 
 from copy import deepcopy
-from monty.json import MSONable
 
-from attrs import define, field, validators
-from botorch.fit import fit_gpytorch_mll
-from botorch.models.transforms.input import Normalize
-from botorch.models.transforms.outcome import Standardize
-from botorch.models import SingleTaskGP, FixedNoiseGP
-from botorch.optim import optimize_acqf
-from botorch.acquisition import UpperConfidenceBound
 import gpytorch
 import numpy as np
 import torch
+from attrs import define, field, validators
+from botorch.acquisition import UpperConfidenceBound
+from botorch.fit import fit_gpytorch_mll
+from botorch.models import FixedNoiseGP, SingleTaskGP
+from botorch.models.transforms.input import Normalize
+from botorch.models.transforms.outcome import Standardize
+from botorch.optim import optimize_acqf
+from monty.json import MSONable
 
+from sva.models.gp.common import SaveLoadMixin, set_eval_, set_train_
 from sva.utils import Timer
-from sva.models.gp.common import set_train_, set_eval_, SaveLoadMixin
 
 
 def _get_model(
@@ -66,8 +66,6 @@ def _get_model(
         model = FixedNoiseGP(
             train_X=X,
             train_Y=Y,
-            train_Yvar=train_Yvar,
-            mean_module=mean_module,
             covar_module=covar_module,
             input_transform=input_transform,
             outcome_transform=outcome_transform,

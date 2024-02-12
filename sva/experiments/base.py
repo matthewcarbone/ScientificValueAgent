@@ -211,14 +211,12 @@ class ExperimentMixin(ABC):
         protocol : str, optional
         """
 
-        match protocol:
-            case "random":
-                X = self.random_inputs(n=n, seed=seed)
-
-            case _:
-                raise NotImplementedError(
-                    f"Unknown provided protocol {protocol}"
-                )
+        if protocol == "random":
+            X = self.random_inputs(n=n, seed=seed)
+        else:
+            raise NotImplementedError(
+                f"Unknown provided protocol {protocol}"
+            )
 
         self.update_data(X)
 

@@ -1,7 +1,9 @@
-from sva.experiments.simple import (  # noqa
+from sva.experiments.simple import (
     SimpleSigmoid,
     WavySinusoidalGPaxLowFidelity,
     WavySinusoidalGPaxHighFidelity,
     NegatedGramacyLeeFunction,
     Simple2d,
 )
+
+from sva.experiments.binary_phases import Sine2Phase 

@@ -53,11 +53,12 @@ def get_model_hyperparameters(model):
 
 
 class SaveLoadMixin:
-
-    def save(): ...
-
-    @classmethod
-    def load(cls, path):
-        d = read_json(path)
-        stem = Path(path).stem
-        model_path = f"{stem}.pt"
+    ...
+    # def save():
+    #     ...
+    #
+    # @classmethod
+    # def load(cls, path):
+    #     d = read_json(path)
+    #     stem = Path(path).stem
+    #     model_path = f"{stem}.pt"

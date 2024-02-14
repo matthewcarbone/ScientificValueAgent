@@ -48,7 +48,7 @@ def plot_1d_gp(
             yerr=2 * np.sqrt(train_Yvar),
             color="black",
             zorder=3,
-            **errorbar_plot_kwargs
+            **errorbar_plot_kwargs,
         )
     else:
         ax.scatter(

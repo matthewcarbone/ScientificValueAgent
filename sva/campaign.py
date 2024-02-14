@@ -1,25 +1,26 @@
 """Module for running campaigns."""
 
-from abc import ABC, abstractproperty, abstractmethod
+from abc import ABC, abstractmethod, abstractproperty
+from functools import cached_property
+
+import gpytorch
+import numpy as np
+import torch
 from botorch.acquisition.penalized import PenalizedAcquisitionFunction
 from botorch.exceptions.errors import ModelFittingError
 from botorch.fit import fit_gpytorch_mll
+from botorch.models import SingleTaskGP
 from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
-from botorch.models import SingleTaskGP
 from botorch.optim import optimize_acqf
-from functools import cached_property
-import gpytorch
-import numpy as np
 from monty.json import MSONable
 from scipy.spatial import distance_matrix
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-import torch
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from tqdm import tqdm
 
-from sva.value import svf as value_function
-from sva.utils import get_function_from_signature, Timer
 from sva.data import CampaignData, _get_grid
+from sva.utils import Timer, get_function_from_signature
+from sva.value import svf as value_function
 
 
 class BaseCampaign(ABC, MSONable):
@@ -27,42 +28,33 @@ class BaseCampaign(ABC, MSONable):
     # Abstract properties
 
     @abstractproperty
-    def sampled_points(self):
-        ...
+    def sampled_points(self): ...
 
     @abstractproperty
-    def dense_grid(self):
-        ...
+    def dense_grid(self): ...
 
     # Abstract methods
 
     @abstractmethod
-    def _acquire_data(self, state: dict) -> dict:
-        ...
+    def _acquire_data(self, state: dict) -> dict: ...
 
     @abstractmethod
-    def _transform_data(self, state: dict):
-        ...
+    def _transform_data(self, state: dict): ...
 
     @abstractmethod
-    def _initialize_model_(self, state: dict):
-        ...
+    def _initialize_model_(self, state: dict): ...
 
     @abstractmethod
-    def _fit_model_(self, state: dict):
-        ...
+    def _fit_model_(self, state: dict): ...
 
     @abstractmethod
-    def _ask_model_(self, state: dict):
-        ...
+    def _ask_model_(self, state: dict): ...
 
     @abstractmethod
-    def _predict_(self, state: dict):
-        ...
+    def _predict_(self, state: dict): ...
 
     @abstractmethod
-    def _update_state_(self, state: dict):
-        ...
+    def _update_state_(self, state: dict): ...
 
     def run(self, n_experiments, pbar=False):
         """The run method has a set of sequential steps that occur for

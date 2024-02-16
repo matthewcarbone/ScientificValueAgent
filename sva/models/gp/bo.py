@@ -22,6 +22,8 @@ from sva.value import svf as value_function
 ACQF_ALIASES = {
     "EI": "botorch.acquisition.analytic:ExpectedImprovement",
     "UCB": "botorch.acquisition.analytic:UpperConfidenceBound",
+    "qEI": "botorch.acquisition.monte_carlo.qExpectedImprovement",
+    "qUCB": "botorch.acquisition.monte_carlo.qUpperConfidenceBound",
 }
 
 
@@ -32,8 +34,37 @@ def ask(
     acquisition_function_kwargs=None,
     optimize_acqf_kwargs=None,
 ):
+    """
+    "Asks" the acquisition function to tell the user which point(s) to sample
+    next.
 
     # bounds = torch.tensor(self.experiment.experimental_domain)
+
+    Parameters
+    ----------
+    gp
+        The Gaussian Process model under consideration.
+    acquisition_function : str
+        The string representing the acquisition function to use.
+    bounds : array_like
+        The bounds on the procedure.
+    acquisition_function_kwargs : dict
+        Keyword arguments to pass to the acquisition function.
+    optimize_acqf_kwargs : dict
+        Keyword arguments to pass to the optimizer.
+
+    Raises
+    ------
+    KeyError:
+        If the provided acquisition function does not match available functions.
+
+    Returns
+    -------
+    dict
+        A dictionary containing the next points, value of the acquisition
+        function as well as the acquisition function object itself.  
+    """
+
     bounds = torch.tensor(bounds)
 
     signature = ACQF_ALIASES.get(acquisition_function)

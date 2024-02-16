@@ -5,8 +5,8 @@ Value functions should always have the signature: value(X, Y, **kwargs)
 
 from abc import ABC, abstractmethod
 
-from monty.json import MSONable
 import numpy as np
+from monty.json import MSONable
 from scipy.spatial import distance_matrix
 
 

@@ -85,7 +85,7 @@ class BaseCampaign(ABC, MSONable):
         for ii in tqdm(range(n_experiments), disable=not pbar):
 
             state = dict(iteration=ii, n_experiments=n_experiments)
-            self._acquire_data_(state)
+            self.acquire_data(state)
             self._transform_data_(state)
             self._initialize_model_(state)
             self._fit_model_(state)
@@ -104,7 +104,7 @@ class Campaign(BaseCampaign):
         domain = self.experiment.experimental_domain
         return _get_grid(self.predict_points_per_dimension, domain)
 
-    def _acquire_data_(self, state):
+    def acquire_data(self, state):
         state["X"] = torch.tensor(self.data.X.copy())
         state["Y"] = torch.tensor(self.data.Y.copy())
 

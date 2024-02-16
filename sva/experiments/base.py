@@ -1,11 +1,14 @@
 from abc import ABC, abstractmethod, abstractproperty
-from attrs import define, field, frozen, validators
-from typing import Optional, Union, Callable
+from copy import deepcopy
+from typing import Callable, Optional, Union
 
-from monty.json import MSONable
 import numpy as np
+from attrs import define, field, frozen, validators
+from monty.json import MSONable
 
-from sva.utils import get_random_points, get_coordinates
+from sva.models.gp.bo import ask
+from sva.models.gp.single_task_gp import EasySingleTaskGP
+from sva.utils import get_coordinates, get_random_points
 
 
 @define
@@ -17,6 +20,7 @@ class ExperimentData(MSONable):
 
     X: np.ndarray = field(default=None)
     Y: np.ndarray = field(default=None)
+    history: list = field(factory=list)
 
     @property
     def N(self):
@@ -214,9 +218,7 @@ class ExperimentMixin(ABC):
         if protocol == "random":
             X = self.random_inputs(n=n, seed=seed)
         else:
-            raise NotImplementedError(
-                f"Unknown provided protocol {protocol}"
-            )
+            raise NotImplementedError(f"Unknown provided protocol {protocol}")
 
         self.update_data(X)
 
@@ -241,6 +243,68 @@ class ExperimentMixin(ABC):
             raise ValueError("Incompatible noise type")
 
         return self.truth(x) + np.random.normal(scale=self.noise, size=x.shape)
+
+    def run_gp_campaign(
+        self,
+        n_experiments,
+        svf=None,
+        acquisition_function="EI",
+        acquisition_function_kwargs={"beta": 10.0},
+        optimize_acqf_kwargs={"q": 1, "num_restarts": 20, "raw_samples": 100},
+    ):
+        if self.data.history is not None:
+            start = self.data.history[-1]["iteration"] + 1
+        else:
+            start = 0
+
+        # First, check to see if the data is initialized
+        if self.data.X is None:
+            raise ValueError("You must initialize starting data first")
+
+        # Run the experiment
+        for ii in range(start, start + n_experiments):
+            # Get the data
+            X = self.data.X
+            Y = self.data.Y
+
+            # Simple fitting of a Gaussian process
+            # using some pretty simple default values for things, which we
+            # can always change later
+            target = Y if not svf else svf(X, Y)
+            if target.ndim > 1 and target.shape[1] > 1:
+                raise ValueError("Can only predict on a scalar target")
+            gp = EasySingleTaskGP.from_default(X, target)
+
+            # Should be able to change how the gp is fit here
+            gp.fit_mll()
+
+            # Ask the model what to do next
+            if acquisition_function in ["EI", "qEI"]:
+                best_f = Y.max()
+                acquisition_function_kwargs["best_f"] = best_f
+            state = ask(
+                gp.model,
+                acquisition_function,
+                bounds=self.properties.experimental_domain,
+                acquisition_function_kwargs=acquisition_function_kwargs,
+                optimize_acqf_kwargs=optimize_acqf_kwargs,
+            )
+
+            # Update the internal data store with the next points
+            X2 = state["next_points"]
+            self.data.update_X(X2)
+
+            # Append the history with everything we want to keep
+            self.data.history.append(
+                {
+                    "iteration": ii,
+                    "next_points": state["next_points"],
+                    "value": state["value"],
+                    "acquisition_function": state["acqf"],
+                    "state": state,
+                    "gp": deepcopy(gp),
+                }
+            )
 
 
 @frozen

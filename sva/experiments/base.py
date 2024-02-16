@@ -5,6 +5,7 @@ from typing import Callable, Optional, Union
 import numpy as np
 from attrs import define, field, frozen, validators
 from monty.json import MSONable
+from tqdm import tqdm
 
 from sva.models.gp.bo import ask
 from sva.models.gp.single_task_gp import EasySingleTaskGP
@@ -251,6 +252,7 @@ class ExperimentMixin(ABC):
         acquisition_function="EI",
         acquisition_function_kwargs={"beta": 10.0},
         optimize_acqf_kwargs={"q": 1, "num_restarts": 20, "raw_samples": 100},
+        pbar=True,
     ):
         if self.data.history is not None:
             start = self.data.history[-1]["iteration"] + 1
@@ -262,7 +264,7 @@ class ExperimentMixin(ABC):
             raise ValueError("You must initialize starting data first")
 
         # Run the experiment
-        for ii in range(start, start + n_experiments):
+        for ii in tqdm(range(start, start + n_experiments), disable=not pbar):
             # Get the data
             X = self.data.X
             Y = self.data.Y

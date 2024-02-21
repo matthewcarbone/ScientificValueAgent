@@ -22,8 +22,8 @@ from sva.value import svf as value_function
 ACQF_ALIASES = {
     "EI": "botorch.acquisition.analytic:ExpectedImprovement",
     "UCB": "botorch.acquisition.analytic:UpperConfidenceBound",
-    "qEI": "botorch.acquisition.monte_carlo.qExpectedImprovement",
-    "qUCB": "botorch.acquisition.monte_carlo.qUpperConfidenceBound",
+    "qEI": "botorch.acquisition.monte_carlo:qExpectedImprovement",
+    "qUCB": "botorch.acquisition.monte_carlo:qUpperConfidenceBound",
 }
 
 

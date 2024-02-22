@@ -23,6 +23,10 @@ def mu_Gaussians(p, E=E_GRID, x0=0.5, sd=0.05):
         The proportion of the first phase.
     E : numpy.ndarray
         Energy grid.
+    x0 : float
+        The absolute value of the location of each Gaussian.
+    sd : float
+        The standard deviation of the Gaussians.
 
     Returns
     -------
@@ -31,8 +35,10 @@ def mu_Gaussians(p, E=E_GRID, x0=0.5, sd=0.05):
     """
 
     p2 = 1.0 - p
+    sd = sd**2
     e = -((x0 + E) ** 2) / sd
-    return p * np.exp(-((x0 - E) ** 2) / sd) + p2 * np.exp(e)
+    e2 = -((x0 - E) ** 2) / sd
+    return p * np.exp(e) + p2 * np.exp(e2)
 
 
 def _sine(x):

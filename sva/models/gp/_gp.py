@@ -2,6 +2,7 @@
 botorch."""
 
 from copy import deepcopy
+from pathlib import Path
 
 import gpytorch
 import numpy as np
@@ -11,9 +12,9 @@ from botorch.fit import fit_gpytorch_mll
 from botorch.models import FixedNoiseGP, MultiTaskGP, SingleTaskGP
 from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
-from monty.json import MSONable
 
-from sva.utils import Timer
+from sva import __version__
+from sva.utils import Timer, read_json, save_json
 
 
 def set_eval_(gp):
@@ -92,7 +93,7 @@ def get_simple_model(
     )
     outcome_transform = Standardize(Y.shape[1]) if transform_output else None
 
-    if train_Yvar and not isinstance(train_Yvar, torch.Tensor):
+    if train_Yvar is not None and not isinstance(train_Yvar, torch.Tensor):
         train_Yvar = torch.tensor(train_Yvar)
 
     if model_type == "SingleTaskGP":
@@ -143,19 +144,6 @@ def get_simple_model(
         raise ValueError(f"Invalid model type {model_type}")
 
     return deepcopy(model)
-
-
-class SaveLoadMixin:
-    ...
-
-    # def save():
-    #     ...
-    #
-    # @classmethod
-    # def load(cls, path):
-    #     d = read_json(path)
-    #     stem = Path(path).stem
-    #     model_path = f"{stem}.pt"
 
 
 def fit_gp_gpytorch_mll_(gp, **fit_kwargs):
@@ -257,6 +245,13 @@ def sample(gp, X, samples=20, observation_noise=False):
     return sampled.detach().numpy().squeeze()
 
 
+@classmethod
+def load_model(path):
+    """Loads a GPyTorch model from disk."""
+
+    return torch.jit.load(path)
+
+
 @define
 class GPMixin:
     X = field()
@@ -304,9 +299,44 @@ class GPMixin:
     def sample(self, X, samples=20, observation_noise=False):
         return sample(self.model, X, samples, observation_noise)
 
+    def save(self, path):
+        """Serializes the EasyGP object to disk."""
+
+        path = Path(path)
+        path.mkdir(exist_ok=True, parents=True)
+
+        # First, we save the model
+        model_scripted = torch.jit.script(self.model)  # Export to TorchScript
+        model_scripted.save(path / "model.pt")
+
+        # Next, we save the other tensors.
+        # NOTE: At some point, this shouldn't be necessary.
+        # The tensors should all be contained in the self.model, but I'm
+        # not sure how to robustly access them
+        np.save(path / "X.npy", self.X)
+        np.save(path / "Y.npy", self.Y)
+        np.save(path / "Yvar.npy", self.Yvar)
+
+        # Finally we save the version information used to generate the
+        # class
+        d = {"__version__": __version__}
+        save_json(d, path / "metadata.json")
+
+    @classmethod
+    def load(cls, path):
+        path = Path(path)
+        assert path.exists()
+
+        model = load_model(path / "model.pt")
+        X = np.load(path / "X.npy")
+        Y = np.load(path / "Y.npy")
+        Yvar = np.load(path / "Yvar.npy")
+
+        return cls(X=X, Y=Y, Yvar=Yvar, model=model)
+
 
 @define(kw_only=True)
-class EasySingleTaskGP(SaveLoadMixin, GPMixin, MSONable):
+class EasySingleTaskGP(GPMixin):
     model = field(validator=validators.instance_of(SingleTaskGP))
 
     @classmethod
@@ -342,7 +372,7 @@ class EasySingleTaskGP(SaveLoadMixin, GPMixin, MSONable):
 
 
 @define(kw_only=True)
-class EasyFixedNoiseGP(SaveLoadMixin, GPMixin, MSONable):
+class EasyFixedNoiseGP(GPMixin):
     model = field(validator=validators.instance_of(FixedNoiseGP))
 
     @classmethod
@@ -378,7 +408,7 @@ class EasyFixedNoiseGP(SaveLoadMixin, GPMixin, MSONable):
 
 
 @define(kw_only=True)
-class EasyMultiTaskGP(SaveLoadMixin, GPMixin, MSONable):
+class EasyMultiTaskGP(GPMixin):
     model = field(validator=validators.instance_of(MultiTaskGP))
 
     @classmethod

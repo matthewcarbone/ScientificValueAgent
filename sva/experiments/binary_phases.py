@@ -5,9 +5,13 @@ from attrs import define, field, validators
 from monty.json import MSONable
 from PyAstronomy.pyasl import broadGaussFast
 
-from sva.experiments.base import (NOISE_TYPES, ExperimentData, ExperimentMixin,
-                                  ExperimentProperties,
-                                  MultimodalExperimentMixin)
+from sva.experiments.base import (
+    NOISE_TYPES,
+    ExperimentData,
+    ExperimentMixin,
+    ExperimentProperties,
+    MultimodalExperimentMixin,
+)
 
 E_GRID = np.linspace(-1, 1, 100)
 

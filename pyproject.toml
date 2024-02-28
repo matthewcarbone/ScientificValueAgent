@@ -49,9 +49,11 @@ test = [
     "nbstripout",
     "pre-commit",
 ]
-
-# [too.coverage.run]
-# omit = ["sva/EasyBO/*"]
+notebook = [
+    "ipython",
+    "jupyterlab",
+    "imageio",
+]
 
 [tool.black]
 line-length = 79

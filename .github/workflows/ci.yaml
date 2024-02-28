@@ -11,7 +11,7 @@ on:
 jobs: 
 
   unit:
-    uses: ./.github/workflows/unit.yml
+    uses: ./.github/workflows/unit.yaml
 
   notebooks:
-    uses: ./.github/workflows/notebook_smoke.yml
+    uses: ./.github/workflows/notebook_smoke.yaml

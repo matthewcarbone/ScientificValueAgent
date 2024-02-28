@@ -416,7 +416,7 @@ class EasyMultiTaskGP(GPMixin):
         cls,
         X,
         Y,
-        Yvar,
+        Yvar=None,
         likelihood=gpytorch.likelihoods.GaussianLikelihood(),
         mean_module=gpytorch.means.ConstantMean(),
         covar_module=gpytorch.kernels.ScaleKernel(
@@ -427,10 +427,10 @@ class EasyMultiTaskGP(GPMixin):
         task_feature=-1,
         **model_kwargs,
     ):
-        """Gets a SingleTaskGP from some sensible default parameters."""
+        """Gets a MultiTaskGP from some sensible default parameters."""
 
         model = get_simple_model(
-            "SingleTaskGP",
+            "MultiTaskGP",
             X,
             Y,
             Yvar,

@@ -231,7 +231,8 @@ class ExperimentMixin(ABC):
 
         if isinstance(self.noise, Callable):
             noise = self.noise(x)
-            return self.truth(x) + np.random.normal(scale=noise, size=x.shape)
+            y = self.truth(x)
+            return y + np.random.normal(scale=noise, size=y.shape)
 
         if isinstance(self.noise, float):
             pass
@@ -243,18 +244,19 @@ class ExperimentMixin(ABC):
         else:
             raise ValueError("Incompatible noise type")
 
-        return self.truth(x) + np.random.normal(scale=self.noise, size=x.shape)
+        y = self.truth(x)
+        return y + np.random.normal(scale=self.noise, size=y.shape)
 
-    def run_gp_campaign(
+    def run_gp_experiment(
         self,
-        n_experiments,
+        max_experiments,
         svf=None,
-        acquisition_function="EI",
+        acquisition_function="UCB",
         acquisition_function_kwargs={"beta": 10.0},
         optimize_acqf_kwargs={"q": 1, "num_restarts": 20, "raw_samples": 100},
         pbar=True,
     ):
-        if self.data.history is not None:
+        if len(self.data.history) > 0:
             start = self.data.history[-1]["iteration"] + 1
         else:
             start = 0
@@ -264,10 +266,15 @@ class ExperimentMixin(ABC):
             raise ValueError("You must initialize starting data first")
 
         # Run the experiment
-        for ii in tqdm(range(start, start + n_experiments), disable=not pbar):
+        for ii in tqdm(
+            range(start, start + max_experiments), disable=not pbar
+        ):
             # Get the data
             X = self.data.X
             Y = self.data.Y
+
+            if X.shape[0] > max_experiments:
+                break
 
             # Simple fitting of a Gaussian process
             # using some pretty simple default values for things, which we
@@ -275,6 +282,8 @@ class ExperimentMixin(ABC):
             target = Y if not svf else svf(X, Y)
             if target.ndim > 1 and target.shape[1] > 1:
                 raise ValueError("Can only predict on a scalar target")
+            if target.ndim == 1:
+                target = target.reshape(-1, 1)
             gp = EasySingleTaskGP.from_default(X, target)
 
             # Should be able to change how the gp is fit here
@@ -282,8 +291,7 @@ class ExperimentMixin(ABC):
 
             # Ask the model what to do next
             if acquisition_function in ["EI", "qEI"]:
-                best_f = Y.max()
-                acquisition_function_kwargs["best_f"] = best_f
+                acquisition_function_kwargs["best_f"] = Y.max()
             state = ask(
                 gp.model,
                 acquisition_function,
@@ -294,20 +302,70 @@ class ExperimentMixin(ABC):
 
             # Update the internal data store with the next points
             X2 = state["next_points"]
-            self.data.update_X(X2)
+            self.update_data(X2)
 
             # Append the history with everything we want to keep
+            # Note that the complete state of the GP is saved in the
+            # acquisition function model
             self.data.history.append(
                 {
                     "iteration": ii,
                     "next_points": state["next_points"],
                     "value": state["value"],
-                    "acquisition_function": state["acqf"],
-                    "state": state,
-                    "gp": deepcopy(gp),
+                    "acquisition_function": deepcopy(
+                        state["acquisition_function"]
+                    ),
+                    "easy_gp": deepcopy(gp),
                 }
             )
 
+
+class MultimodalExperimentMixin(ExperimentMixin):
+
+    def _validate_input(self, x):
+        # Ensure x has the right shape
+        if not x.ndim == 2:
+            raise ValueError(
+                "x must have shape (N, d + 1), where d is the dimension of "
+                "the feature, and the added extra dimension is the task index"
+            )
+
+        # Ensure that the second dimension of x is the right size for the
+        # chosen experiment
+        if not x.shape[1] == self.properties.n_input_dim + 1:
+            raise ValueError(
+                f"x second dimension must be {self.properties.n_input_dim+1}"
+            )
+
+        # Ensure that the input is in the bounds
+        # Domain being None implies the domain is the entirety of the reals
+        # This is a fast way to avoid the check
+        if self.properties.valid_domain is not None:
+            check1 = self.properties.valid_domain[0, :] <= x[:, :-1]
+            check2 = x[:, :-1] <= self.properties.valid_domain[1, :]
+            if not np.all(check1 & check2):
+                raise ValueError("Some inputs x were not in the domain")
+
+    def get_dense_coordinates(self, ppd, modality=0, domain=None):
+        """Gets a set of dense coordinates, augmented with the modality
+        index, which defaults to 0.
+
+        Parameters
+        ----------
+        ppd : int or list
+            Points per dimension.
+        modality : int
+            Indexes the modality to use in multi-modal experiments. 
+
+        Returns
+        -------
+        np.ndarray
+        """
+
+        x = super().get_dense_coordinates(ppd, domain=domain)
+        n = x.shape[0]
+        modality_array = np.zeros((n, 1)) + modality
+        return np.concatenate([x, modality_array], axis=1)
 
 @frozen
 class ExperimentProperties(MSONable):

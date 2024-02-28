@@ -6,4 +6,4 @@ from sva.experiments.simple import (
     Simple2d,
 )
 
-from sva.experiments.binary_phases import Sine2Phase 
+from sva.experiments.binary_phases import Sine2Phase, Sine2Phase2Resolutions

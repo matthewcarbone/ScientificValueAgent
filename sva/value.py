@@ -6,6 +6,7 @@ Value functions should always have the signature: value(X, Y, **kwargs)
 from abc import ABC, abstractmethod
 
 import numpy as np
+from attrs import define, field
 from monty.json import MSONable
 from scipy.spatial import distance_matrix
 
@@ -55,10 +56,10 @@ def svf(X, Y, sd=None, multiplier=1.0):
     return v.mean(axis=1)
 
 
+@define
 class SVF(BaseValue, MSONable):
-    def __init__(self, sd=None, multiplier=1.0):
-        self._sd = sd
-        self._multiplier = multiplier
+    sd = field(default=None)
+    multiplier = field(default=1.0)
 
     def __call__(self, X, Y):
-        return svf(X, Y, self._sd, self._multiplier)
+        return svf(X, Y, self.sd, self.multiplier)

@@ -7,8 +7,8 @@ from attrs import define, field, frozen, validators
 from monty.json import MSONable
 from tqdm import tqdm
 
+from sva.models.gp import EasySingleTaskGP
 from sva.models.gp.bo import ask
-from sva.models.gp.single_task_gp import EasySingleTaskGP
 from sva.utils import get_coordinates, get_random_points
 
 
@@ -321,7 +321,6 @@ class ExperimentMixin(ABC):
 
 
 class MultimodalExperimentMixin(ExperimentMixin):
-
     def _validate_input(self, x):
         # Ensure x has the right shape
         if not x.ndim == 2:
@@ -355,7 +354,7 @@ class MultimodalExperimentMixin(ExperimentMixin):
         ppd : int or list
             Points per dimension.
         modality : int
-            Indexes the modality to use in multi-modal experiments. 
+            Indexes the modality to use in multi-modal experiments.
 
         Returns
         -------
@@ -366,6 +365,110 @@ class MultimodalExperimentMixin(ExperimentMixin):
         n = x.shape[0]
         modality_array = np.zeros((n, 1)) + modality
         return np.concatenate([x, modality_array], axis=1)
+
+    def initialize_data(self, n, modality=0, seed=None, protocol="random"):
+        """Initializes the X data via some provided protocol. Takes care to
+        initialize the multi-modal.
+
+        Parameters
+        ----------
+        n : int
+            The number of points to use initially.
+        modality : int
+            The modality to use during initialization. Defaults to 0, which
+            can be assumed to be the low-fidelity experiment inforomation.
+        seed : int
+            The random seed to ensure reproducibility.
+        protocol : str, optional
+        """
+
+        if protocol == "random":
+            X = self.random_inputs(n=n, seed=seed)
+        else:
+            raise NotImplementedError(f"Unknown provided protocol {protocol}")
+        modality_array = np.zeros((n, 1)) + modality
+        X = np.concatenate([X, modality_array], axis=1)
+        self.update_data(X)
+
+    def run_gp_experiment(
+        self,
+        max_experiments,
+        modality_callback=lambda x: 0,
+        svf=None,
+        acquisition_function="UCB",
+        acquisition_function_kwargs={"beta": 10.0},
+        optimize_acqf_kwargs={"q": 1, "num_restarts": 20, "raw_samples": 100},
+        pbar=True,
+    ):
+        """A special experiment runner which works on multimodal data. The
+        user must specify a special callback function which provides the
+        modality index as a function of iteration. By default, this is just
+        0 for any iteration index (returns the low-fidelity experiment index).
+        """
+
+        if len(self.data.history) > 0:
+            start = self.data.history[-1]["iteration"] + 1
+        else:
+            start = 0
+
+        # First, check to see if the data is initialized
+        if self.data.X is None:
+            raise ValueError("You must initialize starting data first")
+
+        # Run the experiment
+        for ii in tqdm(
+            range(start, start + max_experiments), disable=not pbar
+        ):
+            # Get the data
+            X = self.data.X
+            Y = self.data.Y
+
+            if X.shape[0] > max_experiments:
+                break
+
+            # Simple fitting of a Gaussian process
+            # using some pretty simple default values for things, which we
+            # can always change later
+            target = Y if not svf else svf(X, Y)
+            if target.ndim > 1 and target.shape[1] > 1:
+                raise ValueError("Can only predict on a scalar target")
+            if target.ndim == 1:
+                target = target.reshape(-1, 1)
+            gp = EasySingleTaskGP.from_default(X, target)
+
+            # Should be able to change how the gp is fit here
+            gp.fit_mll()
+
+            # Ask the model what to do next
+            if acquisition_function in ["EI", "qEI"]:
+                acquisition_function_kwargs["best_f"] = Y.max()
+            state = ask(
+                gp.model,
+                acquisition_function,
+                bounds=self.properties.experimental_domain,
+                acquisition_function_kwargs=acquisition_function_kwargs,
+                optimize_acqf_kwargs=optimize_acqf_kwargs,
+            )
+
+            # Update the internal data store with the next points
+            X2 = state["next_points"]
+            self.update_data(X2)
+
+            # Append the history with everything we want to keep
+            # Note that the complete state of the GP is saved in the
+            # acquisition function model
+            self.data.history.append(
+                {
+                    "iteration": ii,
+                    "next_points": state["next_points"],
+                    "value": state["value"],
+                    "acquisition_function": deepcopy(
+                        state["acquisition_function"]
+                    ),
+                    "easy_gp": deepcopy(gp),
+                }
+            )
+
 
 @frozen
 class ExperimentProperties(MSONable):

@@ -1,19 +1,20 @@
 from functools import cached_property
 
-from attrs import define, field, validators
 import numpy as np
+from attrs import define, field, validators
 from monty.json import MSONable
 
 from sva.experiments.base import (
-    ExperimentMixin,
-    ExperimentData,
-    ExperimentProperties,
     NOISE_TYPES,
+    ExperimentData,
+    ExperimentMixin,
+    ExperimentProperties,
 )
+
 from ._gpax import (
-    low_fidelity_sinusoidal,
-    high_fidelity_sinusoidal,
     get_gpax_sinusoidal_dataset,
+    high_fidelity_sinusoidal,
+    low_fidelity_sinusoidal,
 )
 
 
@@ -44,8 +45,9 @@ class SimpleSigmoid(ExperimentMixin, MSONable):
         return 2.0 * self.a * e / d**2
 
 
+# TODO: this should inherit from base.MultiModalExperiment or whatever
 @define
-class _WavySinusoidalGPaxMixin:
+class WavySinusoidalGPax:
     properties = field(
         factory=lambda: ExperimentProperties(
             n_input_dim=1,
@@ -72,7 +74,7 @@ class _WavySinusoidalGPaxMixin:
 
 @define
 class WavySinusoidalGPaxLowFidelity(
-    _WavySinusoidalGPaxMixin, ExperimentMixin, MSONable
+    WavySinusoidalGPax, ExperimentMixin, MSONable
 ):
     def _truth(self, x):
         return low_fidelity_sinusoidal(x, noise=0.0)
@@ -80,7 +82,7 @@ class WavySinusoidalGPaxLowFidelity(
 
 @define
 class WavySinusoidalGPaxHighFidelity(
-    _WavySinusoidalGPaxMixin, ExperimentMixin, MSONable
+    WavySinusoidalGPax, ExperimentMixin, MSONable
 ):
     def _truth(self, x):
         return high_fidelity_sinusoidal(x, noise=0.0)

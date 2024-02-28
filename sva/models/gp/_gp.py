@@ -7,19 +7,22 @@ import gpytorch
 import numpy as np
 import torch
 from attrs import define, field, validators
-from botorch.acquisition import UpperConfidenceBound
 from botorch.fit import fit_gpytorch_mll
-from botorch.models import FixedNoiseGP, SingleTaskGP
+from botorch.models import FixedNoiseGP, MultiTaskGP, SingleTaskGP
 from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
-from botorch.optim import optimize_acqf
 from monty.json import MSONable
 
-from sva.models.gp.common import SaveLoadMixin, set_eval_, set_train_
+from sva.models.gp.common import (
+    SaveLoadMixin,
+    get_simple_model,
+    set_eval_,
+    set_train_,
+)
 from sva.utils import Timer
 
 
-def _get_model(
+def get_simple_model(
     X,
     Y,
     train_Yvar=None,
@@ -66,6 +69,7 @@ def _get_model(
         model = FixedNoiseGP(
             train_X=X,
             train_Y=Y,
+            train_Yvar=train_Yvar,
             covar_module=covar_module,
             input_transform=input_transform,
             outcome_transform=outcome_transform,
@@ -175,11 +179,11 @@ def sample(gp, X, samples=20, observation_noise=False):
 
 
 @define
-class _SingleTaskGPMixin:
+class GPMixin:
     X = field()
 
     @X.validator  # noqa
-    def valid_X(self, attribute, value):
+    def valid_X(self, _, value):
         if not isinstance(value, (torch.Tensor, np.ndarray)):
             raise ValueError("X must be of type torch.Tensor or numpy.ndarray")
         if value.ndim != 2:
@@ -188,7 +192,7 @@ class _SingleTaskGPMixin:
     Y = field()
 
     @Y.validator  # noqa
-    def valid_Y(self, attribute, value):
+    def valid_Y(self, _, value):
         if not isinstance(value, (torch.Tensor, np.ndarray)):
             raise ValueError("Y must be of type torch.Tensor or numpy.ndarray")
         if value.ndim != 2:
@@ -199,7 +203,7 @@ class _SingleTaskGPMixin:
     Y_noise = field()
 
     @Y_noise.validator  # noqa
-    def valid_Y_noise(self, attribute, value):
+    def valid_Y_noise(self, _, value):
         if value is None:
             return
         if not isinstance(value, (torch.Tensor, np.ndarray)):
@@ -225,7 +229,7 @@ class _SingleTaskGPMixin:
 
 
 @define(kw_only=True)
-class EasySingleTaskGP(SaveLoadMixin, _SingleTaskGPMixin, MSONable):
+class EasySingleTaskGP(SaveLoadMixin, GPMixin, MSONable):
     model = field(validator=validators.instance_of(SingleTaskGP))
 
     @classmethod
@@ -242,29 +246,10 @@ class EasySingleTaskGP(SaveLoadMixin, _SingleTaskGPMixin, MSONable):
         transform_output=True,
         **model_kwargs,
     ):
-        """Gets a SingleTaskGP from some sensible default parameters.
+        """Gets a SingleTaskGP from some sensible default parameters."""
 
-        Parameters
-        ----------
-        X : array_like
-            Input training data.
-        Y : array_like
-            Output training data.
-        likelihood : TYPE, optional
-            Description
-        mean_module : TYPE, optional
-            Description
-        covar_module : TYPE, optional
-            Description
-        transform_input : bool, optional
-            Description
-        transform_output : bool, optional
-            Description
-        **model_kwargs
-            Description
-        """
-
-        model = _get_model(
+        model = get_simple_model(
+            "SingleTaskGP",
             X,
             Y,
             None,  # train_Yvar
@@ -280,7 +265,7 @@ class EasySingleTaskGP(SaveLoadMixin, _SingleTaskGPMixin, MSONable):
 
 
 @define(kw_only=True)
-class EasyFixedNoiseGP(SaveLoadMixin, _SingleTaskGPMixin, MSONable):
+class EasyFixedNoiseGP(SaveLoadMixin, GPMixin, MSONable):
     model = field(validator=validators.instance_of(FixedNoiseGP))
 
     @classmethod
@@ -297,29 +282,10 @@ class EasyFixedNoiseGP(SaveLoadMixin, _SingleTaskGPMixin, MSONable):
         transform_output=True,
         **model_kwargs,
     ):
-        """Gets a SingleTaskGP from some sensible default parameters.
+        """Gets a SingleTaskGP from some sensible default parameters."""
 
-        Parameters
-        ----------
-        X : array_like
-            Input training data.
-        Y : array_like
-            Output training data.
-        Y_noise : array_like
-            Noise
-        mean_module : TYPE, optional
-            Description
-        covar_module : TYPE, optional
-            Description
-        transform_input : bool, optional
-            Description
-        transform_output : bool, optional
-            Description
-        **model_kwargs
-            Description
-        """
-
-        model = _get_model(
+        model = get_simple_model(
+            "FixedNoiseGP",
             X,
             Y,
             Y_noise**2,  # train_Yvar
@@ -332,3 +298,42 @@ class EasyFixedNoiseGP(SaveLoadMixin, _SingleTaskGPMixin, MSONable):
         )
 
         return deepcopy(cls(X=X, Y=Y, Y_noise=Y_noise, model=model))
+
+
+@define(kw_only=True)
+class EasyMultiTaskGP(SaveLoadMixin, GPMixin, MSONable):
+    model = field(validator=validators.instance_of(MultiTaskGP))
+
+    @classmethod
+    def from_default(
+        cls,
+        X,
+        Y,
+        Yvar,
+        likelihood=gpytorch.likelihoods.GaussianLikelihood(),
+        mean_module=gpytorch.means.ConstantMean(),
+        covar_module=gpytorch.kernels.ScaleKernel(
+            gpytorch.kernels.MaternKernel()
+        ),
+        transform_input=True,
+        transform_output=True,
+        task_feature=-1,
+        **model_kwargs,
+    ):
+        """Gets a SingleTaskGP from some sensible default parameters."""
+
+        model = get_simple_model(
+            "SingleTaskGP",
+            X,
+            Y,
+            Yvar,
+            likelihood,
+            mean_module,
+            covar_module,
+            transform_input,
+            transform_output,
+            task_feature,
+            **model_kwargs,
+        )
+
+        return deepcopy(cls(X=X, Y=Y, Y_noise=None, model=model))

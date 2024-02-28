@@ -13,16 +13,58 @@ from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
 from monty.json import MSONable
 
-from sva.models.gp.common import (
-    SaveLoadMixin,
-    get_simple_model,
-    set_eval_,
-    set_train_,
-)
 from sva.utils import Timer
 
 
+def set_eval_(gp):
+    """Sets a Gaussian Process model to evaluation mode.
+
+    Parameters
+    ----------
+    gp : botorch.models.SingleTaskGP
+    """
+
+    gp.eval()
+    gp.likelihood.eval()
+
+
+def set_train_(gp):
+    """Sets a Gaussian Process model to training mode.
+
+    Parameters
+    ----------
+    gp : botorch.models.SingleTaskGP
+    """
+
+    gp.train()
+    gp.likelihood.train()
+
+
+def get_model_hyperparameters(model):
+    """Iterates through a torch-like object which has a named_parameters()
+    method and returns a dictionary of all of the parameters, where values
+    are in numpy format.
+
+    Parameters
+    ----------
+    model
+        The model with named_parameters() defined on it.
+
+    Returns
+    -------
+    dict
+    """
+
+    d = {}
+    for p in model.named_parameters():
+        p0 = str(p[0])
+        p1 = p[1].detach().numpy()
+        d[p0] = p1
+    return d
+
+
 def get_simple_model(
+    model_type,
     X,
     Y,
     train_Yvar=None,
@@ -31,6 +73,7 @@ def get_simple_model(
     covar_module=gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel()),
     transform_input=True,
     transform_output=True,
+    task_feature=-1,
     **model_kwargs,
 ):
     """A lightweight helper function that returns a botorch SingleTaskGP or
@@ -49,7 +92,16 @@ def get_simple_model(
     )
     outcome_transform = Standardize(Y.shape[1]) if transform_output else None
 
-    if train_Yvar is None:
+    if train_Yvar and not isinstance(train_Yvar, torch.Tensor):
+        train_Yvar = torch.tensor(train_Yvar)
+
+    if model_type == "SingleTaskGP":
+        if train_Yvar is not None:
+            raise ValueError(
+                "You provided train_Yvar but selected SingleTaskGP, which "
+                "does not take this input"
+            )
+
         model = SingleTaskGP(
             train_X=X,
             train_Y=Y,
@@ -61,10 +113,7 @@ def get_simple_model(
             **model_kwargs,
         )
 
-    else:
-        if not isinstance(train_Yvar, torch.Tensor):
-            train_Yvar = torch.tensor(train_Yvar)
-
+    elif model_type == "FixedNoiseGP":
         # Likelihood argument is ignored here
         model = FixedNoiseGP(
             train_X=X,
@@ -76,7 +125,37 @@ def get_simple_model(
             **model_kwargs,
         )
 
+    elif model_type == "MultiTaskGP":
+        model = MultiTaskGP(
+            train_X=X,
+            train_Y=Y,
+            train_Yvar=train_Yvar,
+            likelihood=likelihood,
+            mean_module=mean_module,
+            covar_module=covar_module,
+            input_transform=input_transform,
+            outcome_transform=outcome_transform,
+            task_feature=task_feature,
+            **model_kwargs,
+        )
+
+    else:
+        raise ValueError(f"Invalid model type {model_type}")
+
     return deepcopy(model)
+
+
+class SaveLoadMixin:
+    ...
+
+    # def save():
+    #     ...
+    #
+    # @classmethod
+    # def load(cls, path):
+    #     d = read_json(path)
+    #     stem = Path(path).stem
+    #     model_path = f"{stem}.pt"
 
 
 def fit_gp_gpytorch_mll_(gp, **fit_kwargs):
@@ -181,17 +260,17 @@ def sample(gp, X, samples=20, observation_noise=False):
 @define
 class GPMixin:
     X = field()
+    Y = field()
+    Yvar = field()
 
-    @X.validator  # noqa
+    @X.validator
     def valid_X(self, _, value):
         if not isinstance(value, (torch.Tensor, np.ndarray)):
             raise ValueError("X must be of type torch.Tensor or numpy.ndarray")
         if value.ndim != 2:
             raise ValueError("X must be of dimension (N, M) (ndims==2)")
 
-    Y = field()
-
-    @Y.validator  # noqa
+    @Y.validator
     def valid_Y(self, _, value):
         if not isinstance(value, (torch.Tensor, np.ndarray)):
             raise ValueError("Y must be of type torch.Tensor or numpy.ndarray")
@@ -200,9 +279,7 @@ class GPMixin:
         if value.shape[1] != 1:
             raise ValueError("Y must have only one target output")
 
-    Y_noise = field()
-
-    @Y_noise.validator  # noqa
+    @Yvar.validator  # noqa
     def valid_Y_noise(self, _, value):
         if value is None:
             return
@@ -261,7 +338,7 @@ class EasySingleTaskGP(SaveLoadMixin, GPMixin, MSONable):
             **model_kwargs,
         )
 
-        return deepcopy(cls(X=X, Y=Y, Y_noise=None, model=model))
+        return deepcopy(cls(X=X, Y=Y, Yvar=None, model=model))
 
 
 @define(kw_only=True)
@@ -273,7 +350,7 @@ class EasyFixedNoiseGP(SaveLoadMixin, GPMixin, MSONable):
         cls,
         X,
         Y,
-        Y_noise,
+        Yvar,
         mean_module=gpytorch.means.ConstantMean(),
         covar_module=gpytorch.kernels.ScaleKernel(
             gpytorch.kernels.MaternKernel()
@@ -288,7 +365,7 @@ class EasyFixedNoiseGP(SaveLoadMixin, GPMixin, MSONable):
             "FixedNoiseGP",
             X,
             Y,
-            Y_noise**2,  # train_Yvar
+            Yvar,
             None,  # likelihood
             mean_module,
             covar_module,
@@ -297,7 +374,7 @@ class EasyFixedNoiseGP(SaveLoadMixin, GPMixin, MSONable):
             **model_kwargs,
         )
 
-        return deepcopy(cls(X=X, Y=Y, Y_noise=Y_noise, model=model))
+        return deepcopy(cls(X=X, Y=Y, Yvar=Yvar, model=model))
 
 
 @define(kw_only=True)
@@ -336,4 +413,4 @@ class EasyMultiTaskGP(SaveLoadMixin, GPMixin, MSONable):
             **model_kwargs,
         )
 
-        return deepcopy(cls(X=X, Y=Y, Y_noise=None, model=model))
+        return deepcopy(cls(X=X, Y=Y, Yvar=Yvar, model=model))

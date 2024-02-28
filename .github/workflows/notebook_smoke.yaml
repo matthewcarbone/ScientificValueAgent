@@ -1,0 +1,36 @@
+
+name: notebooks
+
+env:
+  CI_SMOKE: True
+
+on:
+  workflow_call:
+
+jobs:
+  build-linux:
+    
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+        os: [ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v2
+      
+    - name: Set up Python ${{ matrix.python-version }}
+      
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        bash scripts/install.sh
+
+    - name: Notebook smoke tests
+      run: |
+        bash scripts/test_notebooks.sh
+

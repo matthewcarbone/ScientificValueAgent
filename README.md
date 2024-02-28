@@ -1,6 +1,10 @@
-# Scientific Value Agent
+<div align=center>
 
-The ScientificValueAgent is a collection of tools for GP-based Bayesian Optimization, particularly for use in epistemic experimentation (experiments in which you know nothing, have nothing to optimize and want to simply explore the experimental space as completely as you can).
+# The Scientific Value Agent
+
+</div>
+
+The Scientific Value Agent (SVA) is a collection of tools for Gaussian Process (GP)-based Bayesian Optimization, particularly for use in epistemic experimentation (experiments in which you know nothing, have nothing to optimize and want to simply explore the experimental space as completely as you can).
 
 > [!NOTE]
 > If you use the Scientific Value Agent, please consider citing our [manuscript](https://doi.org/10.1016/j.matt.2023.11.012) in Matter. The software corresponding to this manuscript is tagged as [`v1.1.0`](https://github.com/matthewcarbone/ScientificValueAgent/releases/tag/v1.1.0).
@@ -10,7 +14,14 @@ The ScientificValueAgent is a collection of tools for GP-based Bayesian Optimiza
 > ```
 > or something similar before doing any training.
 
-## Funding acknowledgement
+# 🚀 Examples
+
+We have a few notebooks to get started with the basics of GP-based Bayesian Optimization, which can be found [here](https://github.com/matthewcarbone/ScientificValueAgent/tree/master/notebooks). The links below open in Google Colab notebooks.
+- [Introduction to single-task and fixed-noise GPs in 1d](https://colab.research.google.com/github/matthewcarbone/ScientificValueAgent/blob/master/notebooks/00_simple_GP.ipynb)
+- [Introduction to single-task GPs in a 2d experiment](https://colab.research.google.com/github/matthewcarbone/ScientificValueAgent/blob/master/notebooks/01_simple_2d_GP.ipynb)
+- [Introduction to the SVA](https://colab.research.google.com/github/matthewcarbone/ScientificValueAgent/blob/master/notebooks/02_simple_SVA.ipynb)
+
+# 💲 Funding acknowledgement
 
 This software is supported by Brookhaven National Laboratory (BNL), Laboratory Directed Research and Development (LDRD) Grants: No. 22-059, "Precision synthesis of multiscale nanomaterials through AI-guided robotics for advanced catalysts,” No. 23-039, "Extensible robotic beamline scientist for self-driving total scattering studies" and No. 24-004, "Human-AI-facility integration for the multi-modal studies on high-entropy nanoparticles."
 

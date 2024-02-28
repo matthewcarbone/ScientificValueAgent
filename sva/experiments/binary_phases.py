@@ -1,18 +1,17 @@
 import warnings
 
 import numpy as np
-from attrs import field, validators, define
+from attrs import define, field, validators
 from monty.json import MSONable
+from PyAstronomy.pyasl import broadGaussFast
 
-from sva.experiments.base import (
-    NOISE_TYPES,
-    ExperimentData,
-    ExperimentMixin,
-    ExperimentProperties,
-)
-
+from sva.experiments.base import (NOISE_TYPES, ExperimentData, ExperimentMixin,
+                                  ExperimentProperties,
+                                  MultimodalExperimentMixin)
 
 E_GRID = np.linspace(-1, 1, 100)
+
+
 def mu_Gaussians(p, E=E_GRID, x0=0.5, sd=0.05):
     """Returns a dummy "spectrum" which is just two Gaussian functions. The
     proportion of the two functions is goverened by ``p``.
@@ -60,6 +59,13 @@ def phase_1_sine_on_2d_raster(x, y, x0=0.5, a=100.0):
     return sigmoid(distance, x0, a)
 
 
+def get_phase_from_proportion(x, x0, a, gaussian_x0, gaussian_sd):
+    phase_1 = [phase_1_sine_on_2d_raster(*c, x0, a) for c in x]
+    return np.array(
+        [mu_Gaussians(p, x0=gaussian_x0, sd=gaussian_sd) for p in phase_1]
+    )
+
+
 @define
 class Sine2Phase(ExperimentMixin, MSONable):
     properties = field(
@@ -74,7 +80,78 @@ class Sine2Phase(ExperimentMixin, MSONable):
     data = field(factory=lambda: ExperimentData())
     x0 = field(default=0.5)
     a = field(default=100.0)
+    gaussian_x0 = field(default=0.5)
+    gaussian_sd = field(default=0.22)
 
     def _truth(self, x):
-        phase_1 = [phase_1_sine_on_2d_raster(*c, self.x0, self.a) for c in x]
-        return np.array([mu_Gaussians(p) for p in phase_1])
+        return get_phase_from_proportion(
+            x, self.x0, self.a, self.gaussian_x0, self.gaussian_sd
+        )
+
+
+@define
+class Sine2Phase2Resolutions(MultimodalExperimentMixin, MSONable):
+    """A modification of the Sine2Phase experiment which produces a multimodal
+    output. The low-resolution output is a broadened Gaussian with artificial
+    Gaussian noise injected. The noise paramter controls how strong this noise
+    is. The high-resolution output is the original signal, with no noise."""
+
+    properties = field(
+        factory=lambda: ExperimentProperties(
+            n_input_dim=2,
+            n_output_dim=len(E_GRID),
+            valid_domain=None,
+            experimental_domain=np.array([[0.0, 1.0], [0.0, 1.0]]).T,
+        )
+    )
+    noise = None
+    low_resolution_noise = field(default=0.05)
+    data = field(factory=lambda: ExperimentData())
+    x0 = field(default=0.5)
+    a = field(default=100.0)
+    gaussian_x0 = field(default=0.5)
+    gaussian_sd = field(default=0.05)
+    low_resolution_broadening = field(default=0.1)
+
+    def _truth(self, x):
+        if self.noise is not None:
+            raise ValueError(
+                "noise parameter should be unset here, "
+                "set low_resolution_noise instead"
+            )
+        low_y = None
+        low_ii = np.where(x[:, -1] == 0)[0]
+        if len(low_ii) > 0:
+            low_y = get_phase_from_proportion(
+                x[low_ii, :-1],
+                self.x0,
+                self.a,
+                self.gaussian_x0,
+                self.gaussian_sd,
+            )
+            for ii in range(len(low_y)):
+                low_y[ii, :] = broadGaussFast(
+                    E_GRID, low_y[ii, :], self.low_resolution_broadening
+                )
+            low_y += np.random.normal(
+                scale=self.low_resolution_noise, size=low_y.shape
+            )
+
+        high_y = None
+        high_ii = np.where(x[:, -1] == 1)[0]
+        if len(high_ii) > 0:
+            high_y = get_phase_from_proportion(
+                x[high_ii, :-1],
+                self.x0,
+                self.a,
+                self.gaussian_x0,
+                self.gaussian_sd,
+            )
+
+        # Have to be careful to order the output in the same way as the input
+        to_return = np.empty((x.shape[0], self.properties.n_output_dim))
+        if low_y is not None:
+            to_return[low_ii, :] = low_y
+        if high_y is not None:
+            to_return[high_ii, :] = high_y
+        return to_return

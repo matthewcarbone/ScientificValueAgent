@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod, abstractproperty
 from copy import deepcopy
-from typing import Callable, Optional, Union
+from typing import Callable
 
 import numpy as np
 from attrs import define, field, frozen, validators

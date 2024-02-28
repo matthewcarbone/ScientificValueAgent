@@ -1,16 +1,11 @@
 # Scientific Value Agent
 
-[![image](https://zenodo.org/badge/DOI/10.48550/arXiv.2210.12260.svg)](https://doi.org/10.48550/arXiv.2307.13871)
+The ScientificValueAgent is a collection of tools for GP-based Bayesian Optimization, particularly for use in epistemic experimentation (experiments in which you know nothing, have nothing to optimize and want to simply explore the experimental space as completely as you can).
 
-ℹ️ If you use the Scientific Value Agent, please consider citing our [work](https://doi.org/10.48550/arXiv.2307.13871). The software corresponding to this manuscript is tagged as [`v1.1.0`](https://github.com/matthewcarbone/ScientificValueAgent/releases/tag/v1.1.0).
+ℹ️ If you use the Scientific Value Agent, please consider citing our [manuscript](https://doi.org/10.1016/j.matt.2023.11.012) in Matter. The software corresponding to this manuscript is tagged as [`v1.1.0`](https://github.com/matthewcarbone/ScientificValueAgent/releases/tag/v1.1.0).
 
-⚠️ NOTE: The code is currently only working with cpu. Make sure you run
-
-```bash
-export CUDA_VISIBLE_DEVICES=""
-```
-
-(or similar) before any Gaussian Process training.
+> [!CAUTION]
+> The code on `v1.1.0` is currently only usable with CPU. Make sure you run `export CUDA_VISIBLE_DEVICES=""` or something similar before doing any training.
 
 ## Funding acknowledgement
 

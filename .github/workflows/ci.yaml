@@ -3,10 +3,10 @@ name: CI
 on:
 
   pull_request:
-    branches: ["master", "dev/*", "v*"]
+    branches: ["dev/*", "v*"]
 
   push:
-    branches: ["master", "dev/*", "v*"]
+    branches: ["master"]
 
 jobs: 
 

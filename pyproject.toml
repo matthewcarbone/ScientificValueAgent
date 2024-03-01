@@ -12,6 +12,7 @@ maintainers = [
     {"name" = "Matthew R. Carbone", "email" = "mcarbone@bnl.gov"}
 ]
 description = "The Scientific Value Agent"
+dynamic = ["version"]
 readme = "README.md"
 requires-python = ">=3.11"
 license = {"file" = "LICENSE"}

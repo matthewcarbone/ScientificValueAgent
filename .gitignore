@@ -1,6 +1,7 @@
 *.gif
 *.json
 *.yaml
+!.github/dependabot.yaml
 !example_jobs.yaml
 !.pre-commit-config.yaml
 !.github/workflows/*.yaml

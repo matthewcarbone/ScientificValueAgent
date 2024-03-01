@@ -1,3 +1,4 @@
 notebooks/* linguist-vendored
+*.ipynb linguist-vendored
 scripts/* linguist-vendored
 sva/old/* linguist-vendored

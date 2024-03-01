@@ -1,3 +1,7 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
 [project]
 name = "ScientificValueAgent"
 authors = [
@@ -8,7 +12,7 @@ maintainers = [
     {"name" = "Matthew R. Carbone", "email" = "mcarbone@bnl.gov"}
 ]
 description = "The Scientific Value Agent"
-readme = "README.rst"
+readme = "README.md"
 requires-python = ">=3.11"
 license = {"file" = "LICENSE"}
 classifiers = [
@@ -35,7 +39,7 @@ dependencies = [
     "botorch==0.9.2",
     "pyyaml",
     "pyastronomy",
-    "dunamai",
+    "dunamai==1.19.2",
 ]
 
 [project.optional-dependencies]

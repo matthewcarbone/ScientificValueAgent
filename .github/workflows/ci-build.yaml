@@ -1,0 +1,52 @@
+name: CI/Build
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+
+  # unit:
+  #   uses: ./.github/workflows/unit.yaml
+
+  notebook:
+    uses: ./.github/workflows/notebook_smoke.yaml
+
+
+  build_and_publish:
+    # This workflow follows the best practices outlined here:
+    # https://github.com/marketplace/actions/pypi-publish
+    # for deploying a project to PyPI via a GH action. It only runs on tags
+
+    name: Upload release to PyPI
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/ScientificValueAgent
+    permissions:
+      id-token: write
+
+    needs:
+      - notebook
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+
+    - name: Build and apply version
+      run: bash scripts/build_project.sh
+
+    - name: Publish package distributions to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        # WARNING: using TEST PYPI server here
+        repository-url: https://test.pypi.org/legacy/

@@ -3,6 +3,7 @@ botorch."""
 
 from copy import deepcopy
 from pathlib import Path
+from warnings import warn
 
 import gpytorch
 import numpy as np
@@ -331,6 +332,14 @@ class GPMixin:
         X = np.load(path / "X.npy")
         Y = np.load(path / "Y.npy")
         Yvar = np.load(path / "Yvar.npy")
+
+        d = read_json(path / "metadata.json")
+        version = d["__version__"]
+        if version != __version__:
+            warn(
+                f"Model version loaded ({version}) does not match"
+                f"current sva version {__version__}"
+            )
 
         return cls(X=X, Y=Y, Yvar=Yvar, model=model)
 

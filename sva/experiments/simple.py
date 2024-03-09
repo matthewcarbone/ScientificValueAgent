@@ -11,7 +11,7 @@ from sva.experiments.base import (
     ExperimentProperties,
 )
 
-from ._gpax import (
+from .gpax import (
     get_gpax_sinusoidal_dataset,
     high_fidelity_sinusoidal,
     low_fidelity_sinusoidal,

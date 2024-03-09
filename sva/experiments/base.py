@@ -3,11 +3,14 @@ from copy import deepcopy
 from typing import Callable
 
 import numpy as np
+import torch
 from attrs import define, field, frozen, validators
+from botorch.acquisition.objective import ScalarizedPosteriorTransform
+from botorch.sampling import SobolQMCNormalSampler
 from monty.json import MSONable
 from tqdm import tqdm
 
-from sva.models.gp import EasySingleTaskGP
+from sva.models.gp import EasyMultiTaskGP, EasySingleTaskGP
 from sva.models.gp.bo import ask
 from sva.utils import get_coordinates, get_random_points
 
@@ -151,12 +154,12 @@ class ExperimentMixin(ABC):
         self._validate_output(y)
         return y
 
-    def random_inputs(self, n=1, seed=None):
+    def get_random_coordinates(self, n=1, seed=None, domain=None):
         """Runs n random input points."""
 
-        return get_random_points(
-            self.properties.experimental_domain, n=n, seed=seed
-        )
+        if domain is None:
+            domain = self.properties.experimental_domain
+        return get_random_points(domain, n=n, seed=seed)
 
     def get_dense_coordinates(self, ppd, domain=None):
         """Gets a set of dense coordinates.
@@ -217,7 +220,7 @@ class ExperimentMixin(ABC):
         """
 
         if protocol == "random":
-            X = self.random_inputs(n=n, seed=seed)
+            X = self.get_random_coordinates(n=n, seed=seed)
         else:
             raise NotImplementedError(f"Unknown provided protocol {protocol}")
 
@@ -321,6 +324,10 @@ class ExperimentMixin(ABC):
 
 
 class MultimodalExperimentMixin(ExperimentMixin):
+    @abstractproperty
+    def n_modalities(self):
+        raise NotImplementedError
+
     def _validate_input(self, x):
         # Ensure x has the right shape
         if not x.ndim == 2:
@@ -344,6 +351,12 @@ class MultimodalExperimentMixin(ExperimentMixin):
             check2 = x[:, :-1] <= self.properties.valid_domain[1, :]
             if not np.all(check1 & check2):
                 raise ValueError("Some inputs x were not in the domain")
+
+    def get_random_coordinates(self, n, seed=None, domain=None, modality=0):
+        x = super().get_random_coordinates(n, seed, domain)
+        n = x.shape[0]
+        modality_array = np.zeros((n, 1)) + modality
+        return np.concatenate([x, modality_array], axis=1)
 
     def get_dense_coordinates(self, ppd, modality=0, domain=None):
         """Gets a set of dense coordinates, augmented with the modality
@@ -383,17 +396,16 @@ class MultimodalExperimentMixin(ExperimentMixin):
         """
 
         if protocol == "random":
-            X = self.random_inputs(n=n, seed=seed)
+            X = self.get_random_coordinates(n=n, seed=seed)
         else:
             raise NotImplementedError(f"Unknown provided protocol {protocol}")
-        modality_array = np.zeros((n, 1)) + modality
-        X = np.concatenate([X, modality_array], axis=1)
         self.update_data(X)
 
     def run_gp_experiment(
         self,
         max_experiments,
         modality_callback=lambda x: 0,
+        task_feature=-1,
         svf=None,
         acquisition_function="UCB",
         acquisition_function_kwargs={"beta": 10.0},
@@ -429,19 +441,48 @@ class MultimodalExperimentMixin(ExperimentMixin):
             # Simple fitting of a Gaussian process
             # using some pretty simple default values for things, which we
             # can always change later
-            target = Y if not svf else svf(X, Y)
+            if svf:
+                new_target = np.empty(shape=(Y.shape[0], 1))
+                # Assign each of the values based on the individual modal
+                # experiments. The GP should take care of the rest
+                for modality_index in range(self.n_modalities):
+                    where = np.where(X[:, task_feature] == modality_index)[0]
+                    if len(where) > 0:
+                        target = svf(X[where, :], Y[where, :])
+                        new_target[where, :] = target.reshape(-1, 1)
+                target = new_target
+            else:
+                target = Y
+
             if target.ndim > 1 and target.shape[1] > 1:
                 raise ValueError("Can only predict on a scalar target")
             if target.ndim == 1:
                 target = target.reshape(-1, 1)
-            gp = EasySingleTaskGP.from_default(X, target)
+            gp = EasyMultiTaskGP.from_default(
+                X, target, task_feature=task_feature
+            )
 
             # Should be able to change how the gp is fit here
             gp.fit_mll()
 
+            # Get the current modality of the experiment we're currently
+            # running
+            modality_index = modality_callback(ii)
+
+            # Need to use a posterior transform here to tell the acquisition
+            # function how to weight the multiple outputs
+            weights = np.zeros(shape=(self.n_modalities,))
+            weights[modality_index] = 1.0
+            weights = torch.tensor(weights)
+            transform = ScalarizedPosteriorTransform(weights=weights)
+            acquisition_function_kwargs["posterior_transform"] = transform
+
             # Ask the model what to do next
             if acquisition_function in ["EI", "qEI"]:
-                acquisition_function_kwargs["best_f"] = Y.max()
+                acquisition_function_kwargs["best_f"] = Y[
+                    :, modality_index
+                ].max()
+
             state = ask(
                 gp.model,
                 acquisition_function,

@@ -1,12 +1,12 @@
+import json
 from importlib import import_module
 from itertools import product
-import json
 from time import perf_counter
 
-import matplotlib.pyplot as plt
 import matplotlib as mpl
-from mpl_toolkits import axes_grid1
+import matplotlib.pyplot as plt
 import numpy as np
+from mpl_toolkits import axes_grid1
 from scipy.spatial import distance_matrix
 
 

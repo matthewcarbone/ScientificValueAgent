@@ -1,6 +1,7 @@
 """Module containing helpers for single task GPs written in gpytorch and
 botorch."""
 
+import pickle
 from copy import deepcopy
 from pathlib import Path
 from warnings import warn
@@ -306,32 +307,25 @@ class GPMixin:
         path = Path(path)
         path.mkdir(exist_ok=True, parents=True)
 
-        # First, we save the model
-        model_scripted = torch.jit.script(self.model)  # Export to TorchScript
-        model_scripted.save(path / "model.pt")
-
-        # Next, we save the other tensors.
-        # NOTE: At some point, this shouldn't be necessary.
-        # The tensors should all be contained in the self.model, but I'm
-        # not sure how to robustly access them
-        np.save(path / "X.npy", self.X)
-        np.save(path / "Y.npy", self.Y)
-        np.save(path / "Yvar.npy", self.Yvar)
+        pickle.dump(
+            self,
+            open(path / "klass.pkl", "wb"),
+            protocol=pickle.HIGHEST_PROTOCOL,
+        )
 
         # Finally we save the version information used to generate the
         # class
-        d = {"__version__": __version__}
+        d = {
+            "__version__": __version__,
+            "__name__": self.__class__.__name__,
+            "__module__": self.__class__.__module__,
+        }
         save_json(d, path / "metadata.json")
 
     @classmethod
     def load(cls, path):
         path = Path(path)
         assert path.exists()
-
-        model = load_model(path / "model.pt")
-        X = np.load(path / "X.npy")
-        Y = np.load(path / "Y.npy")
-        Yvar = np.load(path / "Yvar.npy")
 
         d = read_json(path / "metadata.json")
         version = d["__version__"]
@@ -341,7 +335,7 @@ class GPMixin:
                 f"current sva version {__version__}"
             )
 
-        return cls(X=X, Y=Y, Yvar=Yvar, model=model)
+        return pickle.load(open(path / "klass.pkl", "rb"))
 
 
 @define(kw_only=True)

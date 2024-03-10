@@ -1,4 +1,3 @@
-from sva.experiments.binary_phases import Sine2Phase, Sine2Phase2Resolutions
 from sva.experiments.simple import (
     NegatedGramacyLeeFunction,
     Simple2d,
@@ -6,4 +5,8 @@ from sva.experiments.simple import (
     WavySinusoidalGPax,
     WavySinusoidalGPaxHighFidelity,
     WavySinusoidalGPaxLowFidelity,
+)
+from sva.experiments.sine2phase.sine2phase import (
+    Sine2Phase,
+    Sine2Phase2Resolutions,
 )

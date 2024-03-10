@@ -29,11 +29,11 @@ def _f(x):
     return 2.0 * np.sin(x / 10.0) + 0.5 * np.sin(x / 2.0) + 0.1 * x
 
 
-def _low_fidelity_sinusoidal(x, noise=0.0):
+def low_fidelity_sinusoidal(x, noise=0.0):
     return _f(x) + np.random.normal(0, noise, x.shape)
 
 
-def _high_fidelity_sinusoidal(x, noise=0.0):
+def high_fidelity_sinusoidal(x, noise=0.0):
     return (
         1.5 * _f(x)
         + np.sin(x / 15.0)
@@ -47,17 +47,17 @@ def get_gpax_sinusoidal_dataset():
 
     # Fidelity 1 - "theoretical model"
     X1 = np.linspace(0, 100, 100)
-    y1 = _low_fidelity_sinusoidal(X1)
+    y1 = low_fidelity_sinusoidal(X1)
 
     # Fidelity 2 - "experimental measurements"
     X2 = np.concatenate(
         [np.linspace(0, 25, 20), np.linspace(75, 100, 20)]
     )  # only have data for some frequencies
-    y2 = _high_fidelity_sinusoidal(X2, noise=0.3)
+    y2 = high_fidelity_sinusoidal(X2, noise=0.3)
 
     # Ground truth for Fidelity 2
     X_full_range = np.linspace(0, 100, 200)
-    y2_true = _high_fidelity_sinusoidal(X_full_range)
+    y2_true = high_fidelity_sinusoidal(X_full_range)
 
     # Add fidelity indices
     X = np.vstack(

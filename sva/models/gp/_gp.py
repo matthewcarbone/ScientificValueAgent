@@ -17,6 +17,7 @@ from botorch.models.transforms.outcome import Standardize
 from scipy.optimize import minimize
 
 from sva import __version__
+from sva.models.gp.bo import ask
 from sva.utils import Timer, get_random_points, read_json, save_json
 
 
@@ -302,27 +303,50 @@ class GPMixin:
     def sample(self, X, samples=20, observation_noise=False):
         return sample(self.model, X, samples, observation_noise)
 
-    def optimize(
-        self, experiment=None, bounds=None, maximize=True, seed=1234, **kwargs
-    ):
-        """Finds the optima of the GP, either the minimum or the maximum."""
+    def optimize(self, experiment=None, bounds=None, **kwargs):
+        """Finds the optima of the GP, either the minimum or the maximum.
+
+        Properties
+        ----------
+        experiment
+            The experiment object, mutually exclusive to bounds.
+        bounds
+            The bounds of the acquisition, mutually exclusive to experiment.
+            Note that the bounds should be provided in the same format as that
+            of the experimental_domain; i.e., of shape (2, d), where d is
+            the dimensionality of the input space.
+        **kwargs
+            Additional keyword arguments to pass to the optimizer.
+        """
 
         if not ((experiment is not None) ^ (bounds is not None)):
             raise ValueError("Provide either experiment or bounds, not both")
 
         if experiment is not None:
-            x0 = experiment.get_random_coordinates(n=1, seed=seed)
             bounds = experiment.properties.experimental_domain
-            bounds = bounds.T.tolist()
+
+        if "q" in kwargs:
+            warn(
+                "q has been provided to the optimizer but will be overridden to 1"
+            )
+            kwargs["q"] = 1
         else:
-            x0 = get_random_points(domain=np.array(bounds).T, n=1, seed=seed)
+            kwargs["q"] = 1
 
-        def f(x):
-            mu, _ = self.predict(x)
-            mu = mu.reshape(-1, 1)
-            return mu if not maximize else -mu
+        if "num_restarts" not in kwargs:
+            kwargs["num_restarts"] = 20
 
-        return minimize(f, x0.squeeze(), bounds=bounds, **kwargs)
+        if "raw_samples" not in kwargs:
+            kwargs["raw_samples"] = 100
+
+        result = ask(
+            self.model,
+            "UCB",
+            bounds=bounds,
+            acquisition_function_kwargs={"beta": 0.0},
+            optimize_acqf_kwargs={**kwargs},
+        )
+        return result["next_points"].squeeze().numpy()
 
     def save(self, path):
         """Serializes the EasyGP object to disk."""

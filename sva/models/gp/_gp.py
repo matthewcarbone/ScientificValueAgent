@@ -14,9 +14,10 @@ from botorch.fit import fit_gpytorch_mll
 from botorch.models import FixedNoiseGP, MultiTaskGP, SingleTaskGP
 from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
+from scipy.optimize import minimize
 
 from sva import __version__
-from sva.utils import Timer, read_json, save_json
+from sva.utils import Timer, get_random_points, read_json, save_json
 
 
 def set_eval_(gp):
@@ -300,6 +301,28 @@ class GPMixin:
 
     def sample(self, X, samples=20, observation_noise=False):
         return sample(self.model, X, samples, observation_noise)
+
+    def optimize(
+        self, experiment=None, bounds=None, maximize=True, seed=1234, **kwargs
+    ):
+        """Finds the optima of the GP, either the minimum or the maximum."""
+
+        if not ((experiment is not None) ^ (bounds is not None)):
+            raise ValueError("Provide either experiment or bounds, not both")
+
+        if experiment is not None:
+            x0 = experiment.get_random_coordinates(n=1, seed=seed)
+            bounds = experiment.properties.experimental_domain
+            bounds = bounds.T.tolist()
+        else:
+            x0 = get_random_points(domain=np.array(bounds).T, n=1, seed=seed)
+
+        def f(x):
+            mu, _ = self.predict(x)
+            mu = mu.reshape(-1, 1)
+            return mu if not maximize else -mu
+
+        return minimize(f, x0.squeeze(), bounds=bounds, **kwargs)
 
     def save(self, path):
         """Serializes the EasyGP object to disk."""

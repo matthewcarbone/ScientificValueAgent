@@ -1,3 +1,4 @@
 *.pdf
 *.svg
 *.pkl
+tmp/

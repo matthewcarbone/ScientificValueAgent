@@ -1,23 +1,7 @@
-from abc import ABC, abstractmethod, abstractproperty
-from functools import cached_property
-
-import gpytorch
-import numpy as np
 import torch
-from botorch.acquisition.penalized import PenalizedAcquisitionFunction
-from botorch.exceptions.errors import ModelFittingError
-from botorch.fit import fit_gpytorch_mll
-from botorch.models import SingleTaskGP
-from botorch.models.transforms.input import Normalize
-from botorch.models.transforms.outcome import Standardize
 from botorch.optim import optimize_acqf
-from monty.json import MSONable
-from scipy.spatial import distance_matrix
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
-from tqdm import tqdm
 
-from sva.utils import Timer, get_function_from_signature
-from sva.value import svf as value_function
+from sva.utils import get_function_from_signature
 
 ACQF_ALIASES = {
     "EI": "botorch.acquisition.analytic:ExpectedImprovement",
@@ -44,8 +28,13 @@ def ask(
     ----------
     gp
         The Gaussian Process model under consideration.
-    acquisition_function : str
-        The string representing the acquisition function to use.
+    acquisition_function : str, callable
+        The string representing the acquisition function to use. Can also
+        be a callable object such as
+        botorch.acquisition.analytic.ExpectedImprovement, such that it is
+        initialized during the running of this function. Can also be a string
+        representing the alias of the acquisition function, or a signature e.g.
+        "botorch.acquisition.analytic:ExpectedImprovement".
     bounds : array_like
         The bounds on the procedure.
     acquisition_function_kwargs : dict
@@ -62,18 +51,22 @@ def ask(
     -------
     dict
         A dictionary containing the next points, value of the acquisition
-        function as well as the acquisition function object itself.  
+        function as well as the acquisition function object itself.
     """
 
     bounds = torch.tensor(bounds)
 
-    signature = ACQF_ALIASES.get(acquisition_function)
-    if signature is None:
-        raise KeyError(f"Incompatible signature {acquisition_function}")
-    factory = get_function_from_signature(signature)
-
     kwargs = acquisition_function_kwargs if acquisition_function_kwargs else {}
-    acqf = factory(gp, **kwargs)
+
+    if isinstance(acquisition_function, str):
+        signature_from_alias = ACQF_ALIASES.get(acquisition_function)
+        if signature_from_alias:
+            factory = get_function_from_signature(signature_from_alias)
+        else:
+            factory = get_function_from_signature(acquisition_function)
+        acqf = factory(gp, **kwargs)
+    else:
+        acqf = acquisition_function()
 
     kwargs = optimize_acqf_kwargs if optimize_acqf_kwargs else {}
     next_points, value = optimize_acqf(acqf, bounds=bounds, **kwargs)

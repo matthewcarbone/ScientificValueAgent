@@ -1,3 +1,4 @@
+from sva.experiments.gramacylee.gramacylee import GramacyLee2012
 from sva.experiments.simple import (
     NegatedGramacyLeeFunction,
     Simple2d,

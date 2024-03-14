@@ -5,6 +5,7 @@ from monty.json import MSONable
 from sva.experiments.base import (
     NOISE_TYPES,
     ExperimentData,
+    ExperimentHistory,
     ExperimentMixin,
     ExperimentProperties,
 )
@@ -24,6 +25,7 @@ class NegatedGramacyLee2012(ExperimentMixin, MSONable):
         )
     )
     noise = field(default=None, validator=validators.instance_of(NOISE_TYPES))
+    history = field(factory=lambda: ExperimentHistory())
     data = field(factory=lambda: ExperimentData())
 
     def _truth(self, x):

@@ -8,6 +8,7 @@ from PyAstronomy.pyasl import broadGaussFast
 from sva.experiments.base import (
     NOISE_TYPES,
     ExperimentData,
+    ExperimentHistory,
     ExperimentMixin,
     ExperimentProperties,
     MultimodalExperimentMixin,
@@ -82,6 +83,7 @@ class Sine2Phase(ExperimentMixin, MSONable):
     )
     noise = field(default=None, validator=validators.instance_of(NOISE_TYPES))
     data = field(factory=lambda: ExperimentData())
+    history = field(factory=lambda: ExperimentHistory())
     x0 = field(default=0.5)
     a = field(default=100.0)
     gaussian_x0 = field(default=0.5)
@@ -109,6 +111,7 @@ class Sine2Phase2Resolutions(MultimodalExperimentMixin, MSONable):
         )
     )
     noise = None
+    history = field(factory=lambda: ExperimentHistory())
     low_resolution_noise = field(default=0.05)
     data = field(factory=lambda: ExperimentData())
     x0 = field(default=0.5)

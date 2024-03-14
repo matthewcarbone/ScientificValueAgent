@@ -6,7 +6,6 @@ import numpy as np
 import torch
 from attrs import define, field, frozen, validators
 from botorch.acquisition.objective import ScalarizedPosteriorTransform
-from botorch.sampling import SobolQMCNormalSampler
 from monty.json import MSONable
 from tqdm import tqdm
 
@@ -70,6 +69,32 @@ class ExperimentData(MSONable):
             self.Y = experiment(self.X)
 
 
+@define
+class ExperimentHistory:
+    """Container for the history of the experiment. Note that this is not
+    MSONable as it will contain a variety of objects that can only be
+    pickled, so that is the protocl we'll use for this."""
+
+    history: list = field(factory=list)
+
+    def append(self, x):
+        assert isinstance(x, dict)
+        self.history.append(x)
+
+
+@frozen
+class ExperimentProperties(MSONable):
+    """Defines the core set of experiment properties, which are frozen after
+    setting."""
+
+    n_input_dim = field(validator=validators.instance_of(int))
+    n_output_dim = field(validator=validators.instance_of(int))
+    valid_domain = field(
+        validator=validators.instance_of((type(None), np.ndarray))
+    )
+    experimental_domain = field(validator=validators.instance_of(np.ndarray))
+
+
 NOISE_TYPES = (Callable, float, np.ndarray, list, type(None))
 
 
@@ -79,6 +104,9 @@ class ExperimentMixin(ABC):
 
     @abstractproperty
     def noise(self): ...
+
+    @abstractproperty
+    def history(self): ...
 
     @abstractproperty
     def properties(self): ...
@@ -93,7 +121,7 @@ class ExperimentMixin(ABC):
 
         raise NotImplementedError
 
-    def _dtruth(self, x: np.ndarray) -> np.ndarray:
+    def _dtruth(self):
         """The derivative of the truth value with respect to x. May not be
         implemented, depending on the function."""
 
@@ -151,14 +179,13 @@ class ExperimentMixin(ABC):
         self._validate_output(y)
         return y
 
-    def get_random_coordinates(self, n=1, seed=None, domain=None):
+    def get_random_coordinates(self, n=1, seed=None):
         """Runs n random input points."""
 
-        if domain is None:
-            domain = self.properties.experimental_domain
+        domain = self.properties.experimental_domain
         return get_random_points(domain, n=n, seed=seed)
 
-    def get_dense_coordinates(self, ppd, domain=None):
+    def get_dense_coordinates(self, ppd):
         """Gets a set of dense coordinates.
 
         Parameters
@@ -171,8 +198,7 @@ class ExperimentMixin(ABC):
         np.ndarray
         """
 
-        if domain is None:
-            domain = self.properties.experimental_domain
+        domain = self.properties.experimental_domain
         return get_coordinates(ppd, domain)
 
     def get_experimental_domain_mpl_extent(self):
@@ -293,6 +319,9 @@ class MultimodalExperimentMixin(ExperimentMixin):
             Points per dimension.
         modality : int
             Indexes the modality to use in multi-modal experiments.
+        domain : np.ndarray, torch.tensor, optional
+            The experimental domain of interest. If not provided defaults to
+            that of the self experiment.
 
         Returns
         -------
@@ -432,19 +461,6 @@ class MultimodalExperimentMixin(ExperimentMixin):
                     "easy_gp": deepcopy(gp),
                 }
             )
-
-
-@frozen
-class ExperimentProperties(MSONable):
-    """Defines the core set of experiment properties, which are frozen after
-    setting."""
-
-    n_input_dim = field(validator=validators.instance_of(int))
-    n_output_dim = field(validator=validators.instance_of(int))
-    valid_domain = field(
-        validator=validators.instance_of((type(None), np.ndarray))
-    )
-    experimental_domain = field(validator=validators.instance_of(np.ndarray))
 
 
 def gp_experiment_factory(gp, X=None, Y=None):

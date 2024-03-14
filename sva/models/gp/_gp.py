@@ -1,4 +1,4 @@
-"""Module containing helpers for single task GPs written in gpytorch and
+"""Module containinj helpers for single task GPs written in gpytorch and
 botorch."""
 
 import pickle
@@ -14,11 +14,16 @@ from botorch.fit import fit_gpytorch_mll
 from botorch.models import FixedNoiseGP, MultiTaskGP, SingleTaskGP
 from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
-from scipy.optimize import minimize
 
 from sva import __version__
 from sva.models.gp.bo import ask
-from sva.utils import Timer, get_random_points, read_json, save_json
+from sva.utils import (
+    Timer,
+    get_coordinates,
+    read_json,
+    save_json,
+    seed_everything,
+)
 
 
 def set_eval_(gp):
@@ -303,7 +308,7 @@ class GPMixin:
     def sample(self, X, samples=20, observation_noise=False):
         return sample(self.model, X, samples, observation_noise)
 
-    def optimize(self, experiment=None, bounds=None, **kwargs):
+    def optimize(self, experiment=None, bounds=None, n_iter=10, **kwargs):
         """Finds the optima of the GP, either the minimum or the maximum.
 
         Properties
@@ -315,6 +320,9 @@ class GPMixin:
             Note that the bounds should be provided in the same format as that
             of the experimental_domain; i.e., of shape (2, d), where d is
             the dimensionality of the input space.
+        n_iter : int
+            Number of times to loop through ask(). The result that is returned
+            is of course the highest value.
         **kwargs
             Additional keyword arguments to pass to the optimizer.
         """
@@ -346,7 +354,49 @@ class GPMixin:
             acquisition_function_kwargs={"beta": 0.0},
             optimize_acqf_kwargs={**kwargs},
         )
-        return result["next_points"].squeeze().numpy()
+        return result
+
+    def dream(self, ppd=20, experiment=None, bounds=None, seed=None):
+        """Creates a new Gaussian Process model by sampling a single instance
+        of the GP, and then retraining a _new_ GP on a densely sampled grid
+        assuming that single sample is the ground truth.
+
+        Parameters
+        ----------
+        experiment
+            The experiment object, mutually exclusive to bounds.
+        bounds
+            The bounds of the acquisition, mutually exclusive to experiment.
+            Note that the bounds should be provided in the same format as that
+            of the experimental_domain; i.e., of shape (2, d), where d is
+            the dimensionality of the input space.
+
+        Returns
+        -------
+        EasySingleTaskGP
+        """
+
+        if not ((experiment is not None) ^ (bounds is not None)):
+            raise ValueError("Provide either experiment or bounds, not both")
+
+        if experiment is not None:
+            X = experiment.get_dense_coordinates(ppd=ppd)
+        else:
+            X = get_coordinates(ppd, bounds)
+
+        # Ensure sampling reproducibility
+        seed_everything(seed)
+
+        Y = self.sample(X, samples=1)
+        Y = Y.reshape(-1, 1)
+
+        # Now fit a new GP to this data
+        new_gp = EasySingleTaskGP.from_default(X, Y)
+        new_gp.fit_mll()
+
+        # And return this GP, which is now the new "truth" function
+        # Very useful in campaigns
+        return new_gp
 
     def save(self, path):
         """Serializes the EasyGP object to disk."""

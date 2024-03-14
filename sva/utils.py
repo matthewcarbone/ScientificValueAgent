@@ -1,4 +1,5 @@
 import json
+import random
 from importlib import import_module
 from itertools import product
 from time import perf_counter
@@ -6,6 +7,7 @@ from time import perf_counter
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 from mpl_toolkits import axes_grid1
 from scipy.spatial import distance_matrix
 
@@ -21,6 +23,16 @@ class Timer:
     @property
     def dt(self):
         return self._time
+
+
+def seed_everything(seed):
+    """Manually seeds everything needed for reproducibility using torch,
+    numpy and the Python standard library."""
+
+    if seed is not None:
+        torch.manual_seed(seed)
+        random.seed(seed)
+        np.random.seed(seed)
 
 
 def random_indexes(array_size, samples=10, seed=None):

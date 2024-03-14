@@ -78,16 +78,13 @@ class ExperimentMixin(ABC):
     for a single modality."""
 
     @abstractproperty
-    def noise(self):
-        ...
+    def noise(self): ...
 
     @abstractproperty
-    def properties(self):
-        ...
+    def properties(self): ...
 
     @abstractproperty
-    def data(self):
-        ...
+    def data(self): ...
 
     @abstractmethod
     def _truth(self, x: np.ndarray) -> np.ndarray:
@@ -356,9 +353,7 @@ class MultimodalExperimentMixin(ExperimentMixin):
             raise ValueError("You must initialize starting data first")
 
         # Run the experiment
-        for ii in tqdm(
-            range(start, start + max_experiments), disable=not pbar
-        ):
+        for ii in tqdm(range(start, start + max_experiments), disable=not pbar):
             # Get the data
             X = self.data.X
             Y = self.data.Y
@@ -450,3 +445,29 @@ class ExperimentProperties(MSONable):
         validator=validators.instance_of((type(None), np.ndarray))
     )
     experimental_domain = field(validator=validators.instance_of(np.ndarray))
+
+
+def gp_experiment_factory(gp, X=None, Y=None):
+    """Creates a experiment dynamically from a provided EasyGP object."""
+
+    @define
+    class DynamicExperiment(ExperimentMixin, MSONable):
+        _gp = deepcopy(gp)
+        properties = field(
+            factory=lambda: ExperimentProperties(
+                n_input_dim=gp.model.train_inputs[0].shape[1],
+                n_output_dim=1,
+                valid_domain=None,
+                experimental_domain=np.array([[-np.inf, np.inf]]).T,
+            )
+        )
+        noise = field(
+            default=None, validator=validators.instance_of(NOISE_TYPES)
+        )
+        data = field(factory=lambda: ExperimentData(X=X, Y=Y))
+
+        def _truth(self, x):
+            mu, _ = self._gp.predict(x)
+            return mu.reshape(-1, 1)
+
+    return DynamicExperiment

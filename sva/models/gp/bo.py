@@ -66,7 +66,7 @@ def ask(
             factory = get_function_from_signature(acquisition_function)
         acqf = factory(gp, **kwargs)
     else:
-        acqf = acquisition_function()
+        acqf = acquisition_function(gp, **kwargs)
 
     kwargs = optimize_acqf_kwargs if optimize_acqf_kwargs else {}
     next_points, value = optimize_acqf(acqf, bounds=bounds, **kwargs)

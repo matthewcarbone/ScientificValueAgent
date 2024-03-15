@@ -1,6 +1,10 @@
+import json
+import pickle
 from abc import ABC, abstractmethod, abstractproperty
 from copy import deepcopy
+from pathlib import Path
 from typing import Callable
+from warnings import warn
 
 import numpy as np
 import torch
@@ -9,9 +13,15 @@ from botorch.acquisition.objective import ScalarizedPosteriorTransform
 from monty.json import MSONable
 from tqdm import tqdm
 
+from sva import __version__
 from sva.models.gp import EasyMultiTaskGP, EasySingleTaskGP
 from sva.models.gp.bo import ask
-from sva.utils import get_coordinates, get_random_points
+from sva.utils import (
+    get_coordinates,
+    get_function_from_signature,
+    get_random_points,
+    read_json,
+)
 
 
 @define
@@ -23,7 +33,6 @@ class ExperimentData(MSONable):
 
     X: np.ndarray = field(default=None)
     Y: np.ndarray = field(default=None)
-    history: list = field(factory=list)
 
     @property
     def N(self):
@@ -70,7 +79,7 @@ class ExperimentData(MSONable):
 
 
 @define
-class ExperimentHistory:
+class ExperimentHistory(MSONable):
     """Container for the history of the experiment. Note that this is not
     MSONable as it will contain a variety of objects that can only be
     pickled, so that is the protocl we'll use for this."""
@@ -80,6 +89,11 @@ class ExperimentHistory:
     def append(self, x):
         assert isinstance(x, dict)
         self.history.append(x)
+
+    def as_dict(self):
+        """Override MSONable here. We have to save the history separately."""
+
+        return {"history": "_UNSET"}
 
 
 @frozen
@@ -273,6 +287,53 @@ class ExperimentMixin(ABC):
         y = self.truth(x)
         return y + np.random.normal(scale=self.noise, size=y.shape)
 
+    def save(self, directory):
+        """Saves itself to a provided directory."""
+
+        directory = Path(directory)
+        directory.mkdir(exist_ok=True, parents=True)
+
+        j = self.to_json()
+
+        # this is a list containing un-MSONable objects
+        history = self.history.history
+
+        with open(directory / "experiment.json", "w") as f:
+            f.write(j)
+        pickle.dump(
+            history,
+            open(directory / "experiment_history.pkl", "wb"),
+            protocol=pickle.HIGHEST_PROTOCOL,
+        )
+
+
+def load_experiment(directory):
+    """Loads an experiment from disk. Each experiment should get its own
+    directory."""
+
+    directory = Path(directory)
+
+    d = read_json(directory / "experiment.json")
+    history = pickle.load(open(directory / "experiment_history.pkl", "rb"))
+
+    module = d["@module"]
+    klass = d["@class"]
+    version = d["@version"]
+
+    if version != __version__:
+        warn(
+            f"Loaded experiment has version {version}, which is different "
+            f"than current sva version {__version__}"
+        )
+
+    klass = get_function_from_signature(f"{module}:{klass}").from_dict(d)
+
+    # Manually set the history, as this is not MSONable and needs to be
+    # pickled at save time
+    klass.history = history
+
+    return klass
+
 
 class MultimodalExperimentMixin(ExperimentMixin):
     @abstractproperty
@@ -463,27 +524,79 @@ class MultimodalExperimentMixin(ExperimentMixin):
             )
 
 
-def gp_experiment_factory(gp, X=None, Y=None):
-    """Creates a experiment dynamically from a provided EasyGP object."""
+def get_dreamed_experiment(
+    X, Y, domain, train_with="mll", adam_kwargs=None, ppd=20
+):
+    """Creates an Experiment object from data alone. This is done via the
+    following steps.
+
+    1. A standard single task GP is fit to the data.
+    2. A sample is drawn from that GP.
+    3. That sample itself is fit by another GP.
+    4. The mean of this GP is now the experiment in question. Running
+    experiment(x) will produce the mean of this function as the prediction.
+
+    Parameters
+    ----------
+    X, Y : np.ndarray
+        The input and output data of the experiment. Since this will be
+        approximated with a single task GP, Y must be one-dimensional.
+    domain : np.ndarray
+        The experimental domain of the problem. Must be of shape (2, d), where
+        d is the dimensionality of the input.
+    train_with : str, optional
+        The training protocol for the GP approximator. Must be in
+        {"Adam", "mll"}. Default is "mll".
+    adam_kwargs : dict, optional
+        Keyword arguments to pass to the Adam optimizer, if selected.
+    ppd : int
+        The number of points-per-dimension used in the dreamed GP.
+
+    Returns
+    -------
+    DynamicExperiment
+    """
+
+    if train_with not in ["Adam", "mll"]:
+        raise ValueError("train_with must be one of Adam or mll")
+
+    gp = EasySingleTaskGP.from_default(X, Y)
+
+    if train_with == "mll":
+        gp.fit_mll()
+    else:
+        adam_kwargs = adam_kwargs if adam_kwargs is not None else dict()
+        gp.fit_Adam(**adam_kwargs)
+
+    dreamed_gp = gp.dream(ppd=ppd, domain=domain)
 
     @define
-    class DynamicExperiment(ExperimentMixin, MSONable):
-        _gp = deepcopy(gp)
+    class DynamicExperiment(ExperimentMixin):
+        _gp = deepcopy(dreamed_gp)
         properties = field(
             factory=lambda: ExperimentProperties(
-                n_input_dim=gp.model.train_inputs[0].shape[1],
+                n_input_dim=dreamed_gp.model.train_inputs[0].shape[1],
                 n_output_dim=1,
                 valid_domain=None,
-                experimental_domain=np.array([[-np.inf, np.inf]]).T,
+                experimental_domain=domain,
             )
         )
         noise = field(
             default=None, validator=validators.instance_of(NOISE_TYPES)
         )
         data = field(factory=lambda: ExperimentData(X=X, Y=Y))
+        history = field(factory=lambda: ExperimentHistory())
+        metadata = field(factory=dict)
 
         def _truth(self, x):
             mu, _ = self._gp.predict(x)
             return mu.reshape(-1, 1)
 
-    return DynamicExperiment
+    del gp
+    del dreamed_gp
+
+    exp = DynamicExperiment()
+    exp.metadata["optima"] = exp._gp.optimize(
+        domain=domain, num_restarts=150, raw_samples=150
+    )
+    return exp

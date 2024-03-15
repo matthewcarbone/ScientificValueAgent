@@ -1,4 +1,4 @@
-from sva.experiments.base import gp_experiment_factory
+from sva.experiments.base import get_dreamed_experiment, load_experiment
 from sva.experiments.gramacylee.gramacylee import NegatedGramacyLee2012
 from sva.experiments.simple import (
     NegatedGramacyLeeFunction,

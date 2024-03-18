@@ -328,8 +328,7 @@ def load_experiment(directory):
 
     klass = get_function_from_signature(f"{module}:{klass}").from_dict(d)
 
-    # Manually set the history, as this is not MSONable and needs to be
-    # pickled at save time
+    # Manually set the history, as this is not e
     klass.history = history
 
     return klass
@@ -569,13 +568,14 @@ def get_dreamed_experiment(
         gp.fit_Adam(**adam_kwargs)
 
     dreamed_gp = gp.dream(ppd=ppd, domain=domain)
+    n_input_dim = dreamed_gp.model.train_inputs[0].shape[1]
 
     @define
     class DynamicExperiment(ExperimentMixin):
         _gp = deepcopy(dreamed_gp)
         properties = field(
             factory=lambda: ExperimentProperties(
-                n_input_dim=dreamed_gp.model.train_inputs[0].shape[1],
+                n_input_dim=n_input_dim,
                 n_output_dim=1,
                 valid_domain=None,
                 experimental_domain=domain,

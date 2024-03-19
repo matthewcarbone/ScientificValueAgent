@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from sva import __version__
 from sva.models.gp import EasyMultiTaskGP, EasySingleTaskGP
-from sva.models.gp.bo import ask
+from sva.models.gp.bo import ask, is_EI
 from sva.utils import (
     get_coordinates,
     get_function_from_signature,
@@ -33,6 +33,7 @@ class ExperimentData(MSONable):
 
     X: np.ndarray = field(default=None)
     Y: np.ndarray = field(default=None)
+    Yvar: np.ndarray = field(default=None)
 
     @property
     def N(self):
@@ -72,10 +73,20 @@ class ExperimentData(MSONable):
 
         if self.Y is not None:
             diff = self.X.shape[0] - self.Y.shape[0]
-            new_Y = experiment(self.X[-diff:])
+            new_Y, new_Yvar = experiment(self.X[-diff:])
             self.Y = np.concatenate([self.Y, new_Y], axis=0)
         else:
-            self.Y = experiment(self.X)
+            self.Y, new_Yvar = experiment(self.X)
+
+        # If we compute variances
+        if new_Yvar is not None:
+            # And we have existing variances
+            if self.Yvar is not None:
+                self.Yvar = np.concatenate([self.Yvar, new_Yvar], axis=0)
+
+            # Otherwise, we don't have existing variances
+            else:
+                self.Yvar = new_Yvar
 
 
 @define
@@ -94,6 +105,12 @@ class ExperimentHistory(MSONable):
         """Override MSONable here. We have to save the history separately."""
 
         return {"history": "_UNSET"}
+
+    def __len__(self):
+        return len(self.history)
+
+    def __getitem__(self, ii):
+        return self.history[ii]
 
 
 @frozen
@@ -134,6 +151,16 @@ class ExperimentMixin(ABC):
         function for all rows of the provided x input."""
 
         raise NotImplementedError
+
+    def _variance(self, _):
+        """Vectorized truth of the variance of the experiment. Distinct from
+        the 'noise' property, this method returns the errorbar (one standard
+        deviation) on the observed results. By default, this returns None,
+        which is distinct from 0 (there's a difference between having a
+        completely precise observation, returning 0, and having no knowledge
+        of the noise, returning None)."""
+
+        return None
 
     def _dtruth(self):
         """The derivative of the truth value with respect to x. May not be
@@ -177,13 +204,20 @@ class ExperimentMixin(ABC):
                 f"y second dimension must be {self.properties.n_output_dim}"
             )
 
+    def variance(self, x: np.ndarray, validate=False):
+        if validate:
+            self._validate_input(x)
+        return self._variance(x)
+
     def truth(self, x: np.ndarray) -> np.ndarray:
         """Access the noiseless results of an "experiment"."""
 
         self._validate_input(x)
         y = self._truth(x)
         self._validate_output(y)
-        return y
+        # No need to validate x again since it's validated above
+        yvar = self._variance(x)
+        return y, yvar
 
     def dtruth(self, x: np.ndarray) -> np.ndarray:
         """Access the derivative of the noiseless results of the experiment."""
@@ -264,15 +298,17 @@ class ExperimentMixin(ABC):
         self.update_data(X)
 
     def __call__(self, x):
-        """The (possibly noisy) result of the experiment."""
+        """The (possibly noisy) result of the experiment. Also returns the
+        variance of the observations."""
+
+        y, yvar = self.truth(x)
 
         if self.noise is None:
-            return self.truth(x)
+            return y, yvar
 
         if isinstance(self.noise, Callable):
             noise = self.noise(x)
-            y = self.truth(x)
-            return y + np.random.normal(scale=noise, size=y.shape)
+            return y + np.random.normal(scale=noise, size=y.shape), yvar
 
         if isinstance(self.noise, float):
             pass
@@ -284,8 +320,7 @@ class ExperimentMixin(ABC):
         else:
             raise ValueError("Incompatible noise type")
 
-        y = self.truth(x)
-        return y + np.random.normal(scale=self.noise, size=y.shape)
+        return y + np.random.normal(scale=self.noise, size=y.shape), yvar
 
     def save(self, directory):
         """Saves itself to a provided directory."""
@@ -332,6 +367,156 @@ def load_experiment(directory):
     klass.history = history
 
     return klass
+
+
+class CampaignBaseMixin:
+    """This class acts as a mixin for experiments in which there is a single
+    output."""
+
+    def _calculate_remaining_loops(self, n, q):
+        # Calculate the number of remaining experiments, including the
+        # number of experiment loops to perform
+        if self.data.X is not None:
+            initial_size = self.data.X.shape[0]
+        else:
+            initial_size = 0
+        remaining = n - initial_size
+        if remaining <= 0:
+            warn("No experiments performed, set n higher for more experiments")
+            return
+        loops = np.ceil(remaining / q)
+        return loops
+
+    @staticmethod
+    def _fit(gp, fit_with, fit_kwargs):
+        fit_kwargs = fit_kwargs if fit_kwargs is not None else {}
+        if fit_with == "mll":
+            gp.fit_mll(**fit_kwargs)
+        elif fit_with == "Adam":
+            gp.fit_Adam(**fit_kwargs)
+        else:
+            raise ValueError(
+                f"train_with is {fit_with} but must be one of mll or Adam"
+            )
+
+    def _ask(
+        self,
+        gp,
+        Y,
+        acquisition_function,
+        acquisition_function_kwargs,
+        optimize_acqf_kwargs,
+    ):
+        if is_EI(acquisition_function):
+            acquisition_function_kwargs["best_f"] = Y.max()
+        return ask(
+            gp.model,
+            acquisition_function,
+            bounds=self.properties.experimental_domain,
+            acquisition_function_kwargs=acquisition_function_kwargs,
+            optimize_acqf_kwargs=optimize_acqf_kwargs,
+        )
+
+    def run(
+        self,
+        n,
+        acquisition_function,
+        acquisition_function_kwargs,
+        svf=None,
+        model_factory=EasySingleTaskGP,
+        fit_with="mll",
+        fit_kwargs=None,
+        optimize_acqf_kwargs=None,
+    ):
+        """Executes the campaign by running many sequential experiments.
+
+        Parameters
+        ----------
+        n : int
+            The total number of experiments to run.
+        acquisition_function
+            Either a string representation of a model signature, an alias for
+            an acquisition function defined in sva.models.gp.bo or a factory
+            for an acquisition function.
+        acquisition_function_kwargs
+            Keyword arguments to pass to the acquisition function factory.
+        svf
+            If None, does standard optimization. Otherwise, uses the
+            Scientific Value Agent transformation.
+        fit_with : str
+            Either "mll" or "Adam". Defines how the GP is fit
+        fit_kwargs : dict, optional
+            The keyword arguments to fit to the fitting procedure. Default
+            is None.
+        optimize_acqf_kwargs : dict, optional
+            Keyword arguments to pass to the optimizer of the acquisition
+            function. Sensible defaults are set if this is not provided,
+            including sequential (q=1) optimization.
+        """
+
+        if optimize_acqf_kwargs is None:
+            optimize_acqf_kwargs = {
+                "q": 1,
+                "num_restarts": 20,
+                "raw_samples": 100,
+            }
+
+        loops = self._calculate_remaining_loops(n, optimize_acqf_kwargs["q"])
+
+        # The for loop runs over the maximum possible number of experiments
+        for _ in tqdm(range(loops)):
+            # Get the data
+            X = self.data.X
+            Y = self.data.Y
+            Yvar = self.data.Yvar
+
+            # Simple fitting of a Gaussian process
+            # using some pretty simple default values for things, which we
+            # can always change later
+            # TODO: enable the SVA to use Yvar when present
+            if svf:
+                Y = svf(X, Y).reshape(-1, 1)
+
+            # The factory instantiates a model. It must have the from_default
+            # method defined on it. It must also be compatible with the
+            # from_default method (so for example, if your model has noisy
+            # observations, you must use a noise-compatible GP, such as
+            # a fixed-noise GP).
+            args = [X, Y]
+            if Yvar is None:
+                args.append(Yvar)
+            gp = model_factory().from_default(*args)
+
+            # Fit the model
+            self._fit(gp, fit_with, fit_kwargs)
+
+            # Ask the model what to do next, we're also careful to check for
+            # the best_f required keyword argument in the case of an EI
+            # acquisition function
+            # Update the internal data store with the next points
+            state = self._ask(
+                gp,
+                Y,
+                acquisition_function,
+                acquisition_function_kwargs,
+                optimize_acqf_kwargs,
+            )
+
+            self.update_data(state["next_points"])
+
+            # Append the history with everything we want to keep
+            # Note that the complete state of the GP is saved in the
+            # acquisition function model
+            self.history.append(
+                {
+                    "next_points": state["next_points"],
+                    "value": state["value"],
+                    "acquisition_function": deepcopy(
+                        state["acquisition_function"]
+                    ),
+                    "easy_gp": deepcopy(gp),
+                }
+            )
 
 
 class MultimodalExperimentMixin(ExperimentMixin):

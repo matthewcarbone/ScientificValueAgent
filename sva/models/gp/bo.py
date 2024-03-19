@@ -11,6 +11,18 @@ ACQF_ALIASES = {
 }
 
 
+def is_EI(acquisition_function_factory):
+    """Helper function for determining if an acquisition function factory is
+    of type ExpectedImprovement."""
+
+    if isinstance(acquisition_function_factory, str):
+        if acquisition_function_factory in ["EI", "qEI"]:
+            return True
+    if "ExpectedImprovement" in acquisition_function_factory.__class__.__name__:
+        return True
+    return False
+
+
 def ask(
     gp,
     acquisition_function,

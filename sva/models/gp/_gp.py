@@ -17,13 +17,7 @@ from botorch.models.transforms.outcome import Standardize
 
 from sva import __version__
 from sva.models.gp.bo import ask
-from sva.utils import (
-    Timer,
-    get_coordinates,
-    read_json,
-    save_json,
-    seed_everything,
-)
+from sva.utils import Timer, get_coordinates, read_json, save_json
 
 
 def set_eval_(gp):
@@ -155,7 +149,7 @@ def get_simple_model(
     return deepcopy(model)
 
 
-def fit_gp_gpytorch_mll_(gp, **fit_kwargs):
+def fit_gp_gpytorch_mll_(gp, device="cpu", **fit_kwargs):
     """Fits a provided GP model using the fit_gpytorch_mll method from
     botorch.
 
@@ -164,6 +158,8 @@ def fit_gp_gpytorch_mll_(gp, **fit_kwargs):
     dict
         A dictionary containing training metadata.
     """
+
+    gp = gp.to(device)
 
     mll = gpytorch.mlls.ExactMarginalLogLikelihood(
         likelihood=gp.likelihood, model=gp
@@ -176,7 +172,7 @@ def fit_gp_gpytorch_mll_(gp, **fit_kwargs):
     return {"elapsed": timer.dt}
 
 
-def fit_gp_Adam_(gp, X, lr=0.05, n_train=200):
+def fit_gp_Adam_(gp, X, device="cpu", lr=0.05, n_train=200):
     """Fits a provided GP model using the Adam optimizer.
 
     Returns
@@ -191,9 +187,11 @@ def fit_gp_Adam_(gp, X, lr=0.05, n_train=200):
     )
     mll = gpytorch.mlls.ExactMarginalLogLikelihood(
         likelihood=gp.likelihood, model=gp
-    ).to(X)
+    ).to(device)
     set_train_(gp)
     optimizer = torch.optim.Adam(gp.parameters(), lr=lr)
+
+    X = torch.tensor(X).to(device)
 
     with Timer() as timer:
         for _ in range(n_train):
@@ -296,11 +294,13 @@ class GPMixin:
         if value.shape[1] != 1:
             raise ValueError("Y_noise must have only one target output")
 
-    def fit_mll(self, **fit_kwargs):
-        return fit_gp_gpytorch_mll_(self.model, **fit_kwargs)
+    def fit_mll(self, device="cpu", **fit_kwargs):
+        return fit_gp_gpytorch_mll_(self.model, device=device, **fit_kwargs)
 
-    def fit_Adam(self, lr=0.05, n_train=200):
-        return fit_gp_Adam_(self.model, self.X, lr=lr, n_train=n_train)
+    def fit_Adam(self, device="cpu", lr=0.05, n_train=200):
+        return fit_gp_Adam_(
+            self.model, self.X, device=device, lr=lr, n_train=n_train
+        )
 
     def predict(self, X, observation_noise=True):
         return predict(self.model, X, observation_noise)
@@ -308,30 +308,27 @@ class GPMixin:
     def sample(self, X, samples=20, observation_noise=False):
         return sample(self.model, X, samples, observation_noise)
 
-    def optimize(self, experiment=None, bounds=None, n_iter=10, **kwargs):
+    def optimize(self, experiment=None, domain=None, **kwargs):
         """Finds the optima of the GP, either the minimum or the maximum.
 
         Properties
         ----------
         experiment
             The experiment object, mutually exclusive to bounds.
-        bounds
+        domain
             The bounds of the acquisition, mutually exclusive to experiment.
             Note that the bounds should be provided in the same format as that
             of the experimental_domain; i.e., of shape (2, d), where d is
             the dimensionality of the input space.
-        n_iter : int
-            Number of times to loop through ask(). The result that is returned
-            is of course the highest value.
         **kwargs
             Additional keyword arguments to pass to the optimizer.
         """
 
-        if not ((experiment is not None) ^ (bounds is not None)):
+        if not ((experiment is not None) ^ (domain is not None)):
             raise ValueError("Provide either experiment or bounds, not both")
 
         if experiment is not None:
-            bounds = experiment.properties.experimental_domain
+            domain = experiment.properties.experimental_domain
 
         if "q" in kwargs:
             warn(
@@ -350,22 +347,22 @@ class GPMixin:
         result = ask(
             self.model,
             "UCB",
-            bounds=bounds,
+            bounds=domain,
             acquisition_function_kwargs={"beta": 0.0},
             optimize_acqf_kwargs={**kwargs},
         )
         return result
 
-    def dream(self, ppd=20, experiment=None, bounds=None, seed=None):
+    def dream(self, ppd=20, experiment=None, domain=None):
         """Creates a new Gaussian Process model by sampling a single instance
         of the GP, and then retraining a _new_ GP on a densely sampled grid
         assuming that single sample is the ground truth.
 
         Parameters
         ----------
-        experiment
+        experiment : ExperimentMixin
             The experiment object, mutually exclusive to bounds.
-        bounds
+        domain : np.ndarray
             The bounds of the acquisition, mutually exclusive to experiment.
             Note that the bounds should be provided in the same format as that
             of the experimental_domain; i.e., of shape (2, d), where d is
@@ -376,16 +373,13 @@ class GPMixin:
         EasySingleTaskGP
         """
 
-        if not ((experiment is not None) ^ (bounds is not None)):
+        if not ((experiment is not None) ^ (domain is not None)):
             raise ValueError("Provide either experiment or bounds, not both")
 
         if experiment is not None:
             X = experiment.get_dense_coordinates(ppd=ppd)
         else:
-            X = get_coordinates(ppd, bounds)
-
-        # Ensure sampling reproducibility
-        seed_everything(seed)
+            X = get_coordinates(ppd, domain)
 
         Y = self.sample(X, samples=1)
         Y = Y.reshape(-1, 1)

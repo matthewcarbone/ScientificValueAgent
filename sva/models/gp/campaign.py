@@ -6,24 +6,15 @@ from sva.models.gp import EasySingleTaskGP
 from sva.models.gp.bo import ask
 
 
-def _is_EI(acquisition_function_factory):
-    """Helper function for determining if an acquisition function factory is
-    of type ExpectedImprovement."""
-
-    if isinstance(acquisition_function_factory, str):
-        if acquisition_function_factory in ["EI", "qEI"]:
-            return True
-    if "ExpectedImprovement" in acquisition_function_factory.__class__.__name__:
-        return True
-    return False
-
-
 def run_simple_campaign(
     n_experiments,
     experiment,
     acquisition_function,
     acquisition_function_kwargs,
     optimize_acqf_kwargs,
+    train_with="mll",
+    adam_kwargs=None,
+    fit_kwargs=None,
     svf=None,
 ):
     """Executes a simple Bayesian Optimization campaign. Uses the following
@@ -50,7 +41,16 @@ def run_simple_campaign(
         gp = EasySingleTaskGP.from_default(X, Y)
 
         # Use the built in botorch fitting procedure here
-        gp.fit_mll()
+        if train_with == "mll":
+            fit_kwargs = fit_kwargs if fit_kwargs is not None else {}
+            gp.fit_mll(**fit_kwargs)
+        elif train_with == "Adam":
+            adam_kwargs = adam_kwargs if adam_kwargs is not None else {}
+            gp.fit_Adam(**adam_kwargs)
+        else:
+            raise ValueError(
+                f"train_with is {train_with} but must be one of mll or Adam"
+            )
 
         # Ask the model what to do next
         if _is_EI(acquisition_function):
@@ -70,7 +70,7 @@ def run_simple_campaign(
         # Append the history with everything we want to keep
         # Note that the complete state of the GP is saved in the
         # acquisition function model
-        experiment.data.history.append(
+        experiment.history.append(
             {
                 "iteration": ii,
                 "next_points": state["next_points"],

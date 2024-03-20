@@ -35,7 +35,7 @@ def seed_everything(seed):
         np.random.seed(seed)
 
 
-def random_indexes(array_size, samples=10, seed=None):
+def random_indexes(array_size, samples=10):
     """Executes a random downsampling of the provided array along the first
     axis, without replacement.
 
@@ -44,16 +44,12 @@ def random_indexes(array_size, samples=10, seed=None):
     array_size : int
         The total number of possible points to sample from
     samples : int, optional
-    seed : None, optional
-        Random seed for ensuring reproducibility.
 
     Returns
     -------
     np.ndarray
     """
 
-    if seed is not None:
-        np.random.seed(seed)
     return np.random.choice(range(array_size), size=samples, replace=False)
 
 
@@ -117,7 +113,7 @@ def get_coordinates(points_per_dimension, domain):
     return scale_by_domain(np.array([xx for xx in gen]), domain)
 
 
-def get_random_points(domain, n=1, seed=None):
+def get_random_points(domain, n=1):
     """Gets a random selection of points on a provided domain. The dimension
     of the data is inferred from the shape of the domain.
 
@@ -127,16 +123,12 @@ def get_random_points(domain, n=1, seed=None):
         The domain to scale to. Should be of shape (2, d).
     n : int
         Total number of points.
-    seed : int, optional
-        Random seed to use for reproducibility.
 
     Returns
     -------
     np.ndarray
     """
 
-    if seed is not None:
-        np.random.seed(seed)
     X = np.random.random(size=(n, domain.shape[1]))
     return scale_by_domain(X, domain)
 

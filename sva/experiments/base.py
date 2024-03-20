@@ -227,11 +227,11 @@ class ExperimentMixin(ABC):
         self._validate_output(y)
         return y
 
-    def get_random_coordinates(self, n=1, seed=None):
+    def get_random_coordinates(self, n=1):
         """Runs n random input points."""
 
         domain = self.properties.experimental_domain
-        return get_random_points(domain, n=n, seed=seed)
+        return get_random_points(domain, n=n)
 
     def get_dense_coordinates(self, ppd):
         """Gets a set of dense coordinates.
@@ -278,20 +278,19 @@ class ExperimentMixin(ABC):
         self.data.update_X(x)
         self.data.update_Y(self)
 
-    def initialize_data(self, n, seed=None, protocol="random"):
+    def initialize_data(self, n, protocol="random"):
         """Initializes the X data via some provided protocol.
 
         Parameters
         ----------
         n : int
             The number of points to use initially.
-        seed : int
-            The random seed to ensure reproducibility.
         protocol : str, optional
+            The method for using to initialize the data.
         """
 
         if protocol == "random":
-            X = self.get_random_coordinates(n=n, seed=seed)
+            X = self.get_random_coordinates(n=n)
         else:
             raise NotImplementedError(f"Unknown provided protocol {protocol}")
 
@@ -385,7 +384,7 @@ class CampaignBaseMixin:
             warn("No experiments performed, set n higher for more experiments")
             return
         loops = np.ceil(remaining / q)
-        return loops
+        return int(loops)
 
     @staticmethod
     def _fit(gp, fit_with, fit_kwargs):
@@ -485,7 +484,7 @@ class CampaignBaseMixin:
             args = [X, Y]
             if Yvar is None:
                 args.append(Yvar)
-            gp = model_factory().from_default(*args)
+            gp = model_factory.from_default(*args)
 
             # Fit the model
             self._fit(gp, fit_with, fit_kwargs)
@@ -548,8 +547,8 @@ class MultimodalExperimentMixin(ExperimentMixin):
             if not np.all(check1 & check2):
                 raise ValueError("Some inputs x were not in the domain")
 
-    def get_random_coordinates(self, n, seed=None, domain=None, modality=0):
-        x = super().get_random_coordinates(n, seed, domain)
+    def get_random_coordinates(self, n, domain=None, modality=0):
+        x = super().get_random_coordinates(n, domain)
         n = x.shape[0]
         modality_array = np.zeros((n, 1)) + modality
         return np.concatenate([x, modality_array], axis=1)
@@ -578,7 +577,7 @@ class MultimodalExperimentMixin(ExperimentMixin):
         modality_array = np.zeros((n, 1)) + modality
         return np.concatenate([x, modality_array], axis=1)
 
-    def initialize_data(self, n, modality=0, seed=None, protocol="random"):
+    def initialize_data(self, n, modality=0, protocol="random"):
         """Initializes the X data via some provided protocol. Takes care to
         initialize the multi-modal.
 
@@ -589,13 +588,11 @@ class MultimodalExperimentMixin(ExperimentMixin):
         modality : int
             The modality to use during initialization. Defaults to 0, which
             can be assumed to be the low-fidelity experiment inforomation.
-        seed : int
-            The random seed to ensure reproducibility.
         protocol : str, optional
         """
 
         if protocol == "random":
-            X = self.get_random_coordinates(n=n, seed=seed)
+            X = self.get_random_coordinates(n=n)
         else:
             raise NotImplementedError(f"Unknown provided protocol {protocol}")
         self.update_data(X)

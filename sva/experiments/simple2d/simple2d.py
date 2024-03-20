@@ -4,6 +4,7 @@ from monty.json import MSONable
 
 from sva.experiments.base import (
     NOISE_TYPES,
+    CampaignBaseMixin,
     ExperimentData,
     ExperimentHistory,
     ExperimentMixin,
@@ -12,7 +13,7 @@ from sva.experiments.base import (
 
 
 @define
-class Simple2d(ExperimentMixin, MSONable):
+class Simple2d(ExperimentMixin, CampaignBaseMixin, MSONable):
     history = field(factory=lambda: ExperimentHistory())
     properties = field(
         factory=lambda: ExperimentProperties(

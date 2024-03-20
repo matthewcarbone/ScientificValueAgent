@@ -63,20 +63,11 @@ build = [
     "dunamai==1.19.2",
 ]
 
-[tool.black]
-line-length = 79
-include = '\.pyi?$'
-exclude = '''
-/(
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-  | docs/source/conf.py
-)/
-'''
+[tool.ruff]
+line-length = 80
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+docstring-code-line-length = 60

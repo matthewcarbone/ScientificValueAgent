@@ -671,6 +671,20 @@ class SimulatedCampaign:
 
     root = field(default=None, validator=validators.instance_of((str, Path)))
 
+    @staticmethod
+    def _run_job(job):
+        experiment = job["experiment"]
+        n = job["n_steps"]
+        acqf = job["acquisition_function"]
+        acqf_kwargs = job["acquisition_function_kwargs"]
+        experiment.run(n, acqf, acqf_kwargs, optimize_gp=True)
+        job["experiment"] = experiment
+
+        ii = job["dream_index"]
+        print(f"done with {str(acqf)}, {str(acqf_kwargs)}, {ii}")
+        # Required for multiprocessing
+        return job
+
     def run_simulated_campaign(self, n_jobs=12):
         # Create the job indexes that will be used later
         jobs = []
@@ -686,7 +700,13 @@ class SimulatedCampaign:
                 job = {
                     "dream_index": dream_index,
                     "experiment": dream_experiment,
-                    "aquisition_function": acqf,
+                    "acquisition_function": acqf,
                     "acquisition_function_kwargs": acqf_kwargs,
+                    "n_steps": self.n_steps,
                 }
                 jobs.append(job)
+
+        results = Parallel(n_jobs=n_jobs)(
+            delayed(self._run_job)(job) for job in jobs
+        )
+        return results

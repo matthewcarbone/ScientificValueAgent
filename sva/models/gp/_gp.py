@@ -4,7 +4,7 @@ botorch."""
 import pickle
 from copy import deepcopy
 from pathlib import Path
-from warnings import warn
+from warnings import catch_warnings, warn
 
 import gpytorch
 import numpy as np
@@ -299,6 +299,7 @@ class GPMixin:
     X = field()
     Y = field()
     Yvar = field()
+    warnings = field(factory=list)
 
     @X.validator
     def valid_X(self, _, value):
@@ -333,12 +334,18 @@ class GPMixin:
         return fit_gp_gpytorch_mll_(self.model, device=device, **fit_kwargs)
 
     def fit_Adam(self, device="cpu", lr=0.05, n_train=200):
-        return fit_gp_Adam_(
-            self.model, self.X, device=device, lr=lr, n_train=n_train
-        )
+        with catch_warnings(record=True) as w:
+            results = fit_gp_Adam_(
+                self.model, self.X, device=device, lr=lr, n_train=n_train
+            )
+        self.warnings.append(w)
+        return results
 
     def predict(self, X, observation_noise=True):
-        return predict(self.model, X, observation_noise)
+        with catch_warnings(record=True) as w:
+            results = predict(self.model, X, observation_noise)
+        self.warnings.append(w)
+        return results
 
     def sample(self, X, samples=20, observation_noise=False):
         return sample(self.model, X, samples, observation_noise)
@@ -435,7 +442,7 @@ class GPMixin:
 
         pickle.dump(
             self,
-            open(path / "klass.pkl", "wb"),
+            open(path / "model.pkl", "wb"),
             protocol=pickle.HIGHEST_PROTOCOL,
         )
 
@@ -461,7 +468,7 @@ class GPMixin:
                 f"current sva version {__version__}"
             )
 
-        return pickle.load(open(path / "klass.pkl", "rb"))
+        return pickle.load(open(path / "model.pkl", "rb"))
 
 
 @define(kw_only=True)

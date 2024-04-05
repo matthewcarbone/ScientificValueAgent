@@ -1,4 +1,3 @@
-import json
 import pickle
 from abc import ABC, abstractmethod, abstractproperty
 from copy import deepcopy
@@ -10,7 +9,6 @@ import numpy as np
 import torch
 from attrs import define, field, frozen, validators
 from botorch.acquisition.objective import ScalarizedPosteriorTransform
-from joblib import Parallel, delayed
 from monty.json import MSONable
 from tqdm import tqdm
 
@@ -94,7 +92,7 @@ class ExperimentData(MSONable):
 class ExperimentHistory(MSONable):
     """Container for the history of the experiment. Note that this is not
     MSONable as it will contain a variety of objects that can only be
-    pickled, so that is the protocl we'll use for this."""
+    pickled, so that is the protocol we'll use for this."""
 
     history: list = field(factory=list)
 
@@ -102,10 +100,14 @@ class ExperimentHistory(MSONable):
         assert isinstance(x, dict)
         self.history.append(x)
 
-    def as_dict(self):
-        """Override MSONable here. We have to save the history separately."""
+    def extend(self, x):
+        assert all([isinstance(xx, dict) for xx in x])
+        self.history.extend(x)
 
-        return {"history": "_UNSET"}
+    # def as_dict(self):
+    #     """Override MSONable here. We have to save the history separately."""
+    #
+    #     return {"history": "_UNSET"}
 
     def __len__(self):
         return len(self.history)
@@ -323,51 +325,52 @@ class ExperimentMixin(ABC):
 
         return y + np.random.normal(scale=self.noise, size=y.shape), yvar
 
-    def save(self, directory):
-        """Saves itself to a provided directory."""
 
-        directory = Path(directory)
-        directory.mkdir(exist_ok=True, parents=True)
-
-        j = self.to_json()
-
-        # this is a list containing un-MSONable objects
-        history = self.history.history
-
-        with open(directory / "experiment.json", "w") as f:
-            f.write(j)
-        pickle.dump(
-            history,
-            open(directory / "experiment_history.pkl", "wb"),
-            protocol=pickle.HIGHEST_PROTOCOL,
-        )
-
-
-def load_experiment(directory):
-    """Loads an experiment from disk. Each experiment should get its own
-    directory."""
-
-    directory = Path(directory)
-
-    d = read_json(directory / "experiment.json")
-    history = pickle.load(open(directory / "experiment_history.pkl", "rb"))
-
-    module = d["@module"]
-    klass = d["@class"]
-    version = d["@version"]
-
-    if version != __version__:
-        warn(
-            f"Loaded experiment has version {version}, which is different "
-            f"than current sva version {__version__}"
-        )
-
-    klass = get_function_from_signature(f"{module}:{klass}").from_dict(d)
-
-    # Manually set the history
-    klass.history = history
-
-    return klass
+#     def save(self, directory):
+#         """Saves itself to a provided directory."""
+#
+#         directory = Path(directory)
+#         directory.mkdir(exist_ok=True, parents=True)
+#
+#         j = self.to_json()
+#
+#         # this is a list containing un-MSONable objects
+#         history = self.history.history
+#
+#         with open(directory / "experiment.json", "w") as f:
+#             f.write(j)
+#         pickle.dump(
+#             history,
+#             open(directory / "experiment_history.pkl", "wb"),
+#             protocol=pickle.HIGHEST_PROTOCOL,
+#         )
+#
+#
+# def load_experiment(directory):
+#     """Loads an experiment from disk. Each experiment should get its own
+#     directory."""
+#
+#     directory = Path(directory)
+#
+#     d = read_json(directory / "experiment.json")
+#     history = pickle.load(open(directory / "experiment_history.pkl", "rb"))
+#
+#     module = d["@module"]
+#     klass = d["@class"]
+#     version = d["@version"]
+#
+#     if version != __version__:
+#         warn(
+#             f"Loaded experiment has version {version}, which is different "
+#             f"than current sva version {__version__}"
+#         )
+#
+#     klass = get_function_from_signature(f"{module}:{klass}").from_dict(d)
+#
+#     # Manually set the history
+#     klass.history = history
+#
+#     return klass
 
 
 class CampaignBaseMixin:
@@ -431,6 +434,7 @@ class CampaignBaseMixin:
         optimize_gp=False,
         num_restarts=150,
         raw_samples=150,
+        pbar=True,
     ):
         """Executes the campaign by running many sequential experiments.
 
@@ -462,6 +466,8 @@ class CampaignBaseMixin:
             exploitative UCB(beta=0) acquisition function.
         num_restarts, raw_samples : int
             Parameters to pass to the BoTorch optimization scheme.
+        pbar : bool
+            Whether or not to display the tqdm progress bar.
         """
 
         if optimize_acqf_kwargs is None:
@@ -474,7 +480,7 @@ class CampaignBaseMixin:
         loops = self._calculate_remaining_loops(n, optimize_acqf_kwargs["q"])
 
         # The for loop runs over the maximum possible number of experiments
-        for ii in tqdm(range(loops)):
+        for ii in tqdm(range(loops), disable=not pbar):
             # Get the data
             X = self.data.X
             Y = self.data.Y
@@ -597,7 +603,7 @@ def get_dreamed_experiment(
     n_input_dim = dreamed_gp.model.train_inputs[0].shape[1]
 
     @define
-    class DynamicExperiment(ExperimentMixin):
+    class DynamicExperiment(ExperimentMixin, CampaignBaseMixin):
         _gp = deepcopy(dreamed_gp)
         properties = field(
             factory=lambda: ExperimentProperties(
@@ -628,85 +634,189 @@ def get_dreamed_experiment(
     return exp
 
 
-@define
-class SimulatedCampaign:
-    """Class for running simulated campaigns. A simulated campaign is a
-    series of dummy experiments meant to determine the best policy for some
-    experiment. This Campaign object is designed to run with experiments that
-    take d inputs and produce only a single, continuous output.
+# WARNING: This is not really functional yet
+class MultimodalExperimentMixin(ExperimentMixin):
+    @abstractproperty
+    def n_modalities(self):
+        raise NotImplementedError
 
-    Parameters
-    ----------
-    experiment : ExperimentMixin
-        The experiment, already loaded with the data, to run the simulated
-        campaign over. This experiment will be deep-copied at every new
-        instance of the simulated campaign.
-    acquisition_functions : list
-        A list of acquisition functions or signatures to test during the
-        campaign.
-    acquisition_function_kwargs : list
-        A list of keyword arguments to pass to the acquisition functions.
-    n_steps : int
-        The number of steps to take in each simulated experiments (the number
-        of experiments to run/new data points to sample).
-    n_dreams : int
-        The number of samples from the GP fit on the original data to run the
-        simulations over.
-    """
+    def _validate_input(self, x):
+        # Ensure x has the right shape
+        if not x.ndim == 2:
+            raise ValueError(
+                "x must have shape (N, d + 1), where d is the dimension of "
+                "the feature, and the added extra dimension is the task index"
+            )
 
-    experiment = field()
+        # Ensure that the second dimension of x is the right size for the
+        # chosen experiment
+        if not x.shape[1] == self.properties.n_input_dim + 1:
+            raise ValueError(
+                f"x second dimension must be {self.properties.n_input_dim+1}"
+            )
 
-    @experiment.validator
-    def validate_experiment(self, _, value):
-        if not issubclass(value, ExperimentMixin):
-            raise ValueError("Experiment must subclass ExperimentMixin")
+        # Ensure that the input is in the bounds
+        # Domain being None implies the domain is the entirety of the reals
+        # This is a fast way to avoid the check
+        if self.properties.valid_domain is not None:
+            check1 = self.properties.valid_domain[0, :] <= x[:, :-1]
+            check2 = x[:, :-1] <= self.properties.valid_domain[1, :]
+            if not np.all(check1 & check2):
+                raise ValueError("Some inputs x were not in the domain")
 
-    acquisition_functions = field(validator=validators.instance_of(list))
-    acquisition_function_kwargs = field(validator=validators.instance_of(list))
+    def get_random_coordinates(self, n, domain=None, modality=0):
+        x = super().get_random_coordinates(n, domain)
+        n = x.shape[0]
+        modality_array = np.zeros((n, 1)) + modality
+        return np.concatenate([x, modality_array], axis=1)
 
-    n_steps = field(default=20, validator=validators.instance_of(int))
-    n_dreams = field(default=5, validator=validators.instance_of(int))
+    def get_dense_coordinates(self, ppd, modality=0, domain=None):
+        """Gets a set of dense coordinates, augmented with the modality
+        index, which defaults to 0.
 
-    campaign_results = field(factory=list)
+        Parameters
+        ----------
+        ppd : int or list
+            Points per dimension.
+        modality : int
+            Indexes the modality to use in multi-modal experiments.
+        domain : np.ndarray, torch.tensor, optional
+            The experimental domain of interest. If not provided defaults to
+            that of the self experiment.
 
-    root = field(default=None, validator=validators.instance_of((str, Path)))
+        Returns
+        -------
+        np.ndarray
+        """
 
-    @staticmethod
-    def _run_job(job):
-        experiment = job["experiment"]
-        n = job["n_steps"]
-        acqf = job["acquisition_function"]
-        acqf_kwargs = job["acquisition_function_kwargs"]
-        experiment.run(n, acqf, acqf_kwargs, optimize_gp=True)
-        job["experiment"] = experiment
+        x = super().get_dense_coordinates(ppd, domain=domain)
+        n = x.shape[0]
+        modality_array = np.zeros((n, 1)) + modality
+        return np.concatenate([x, modality_array], axis=1)
 
-        ii = job["dream_index"]
-        print(f"done with {str(acqf)}, {str(acqf_kwargs)}, {ii}")
-        # Required for multiprocessing
-        return job
+    def initialize_data(self, n, modality=0, protocol="random"):
+        """Initializes the X data via some provided protocol. Takes care to
+        initialize the multi-modal.
 
-    def run_simulated_campaign(self, n_jobs=12):
-        # Create the job indexes that will be used later
-        jobs = []
-        for acqf, acqf_kwargs in zip(
-            self.acquisition_functions, self.acquisition_function_kwargs
-        ):
-            for dream_index in range(self.n_dreams):
-                dream_experiment = get_dreamed_experiment(
-                    self.experiment.data.X,
-                    self.experiment.data.Y,
-                    self.experiment.properties.experimental_domain,
-                )
-                job = {
-                    "dream_index": dream_index,
-                    "experiment": dream_experiment,
-                    "acquisition_function": acqf,
-                    "acquisition_function_kwargs": acqf_kwargs,
-                    "n_steps": self.n_steps,
-                }
-                jobs.append(job)
+        Parameters
+        ----------
+        n : int
+            The number of points to use initially.
+        modality : int
+            The modality to use during initialization. Defaults to 0, which
+            can be assumed to be the low-fidelity experiment inforomation.
+        protocol : str, optional
+        """
 
-        results = Parallel(n_jobs=n_jobs)(
-            delayed(self._run_job)(job) for job in jobs
-        )
-        return results
+        if protocol == "random":
+            X = self.get_random_coordinates(n=n)
+        else:
+            raise NotImplementedError(f"Unknown provided protocol {protocol}")
+        self.update_data(X)
+
+    def run_gp_experiment(
+        self,
+        max_experiments,
+        modality_callback=lambda x: 0,
+        task_feature=-1,
+        svf=None,
+        acquisition_function="UCB",
+        acquisition_function_kwargs={"beta": 10.0},
+        optimize_acqf_kwargs={"q": 1, "num_restarts": 20, "raw_samples": 100},
+        optimize_results=False,
+        pbar=True,
+    ):
+        """A special experiment runner which works on multimodal data. The
+        user must specify a special callback function which provides the
+        modality index as a function of iteration. By default, this is just
+        0 for any iteration index (returns the low-fidelity experiment index).
+        """
+
+        if len(self.data.history) > 0:
+            start = self.data.history[-1]["iteration"] + 1
+        else:
+            start = 0
+
+        # First, check to see if the data is initialized
+        if self.data.X is None:
+            raise ValueError("You must initialize starting data first")
+
+        # Run the experiment
+        for ii in tqdm(range(start, start + max_experiments), disable=not pbar):
+            # Get the data
+            X = self.data.X
+            Y = self.data.Y
+
+            if X.shape[0] > max_experiments:
+                break
+
+            # Simple fitting of a Gaussian process
+            # using some pretty simple default values for things, which we
+            # can always change later
+            if svf:
+                new_target = np.empty(shape=(Y.shape[0], 1))
+                # Assign each of the values based on the individual modal
+                # experiments. The GP should take care of the rest
+                for modality_index in range(self.n_modalities):
+                    where = np.where(X[:, task_feature] == modality_index)[0]
+                    if len(where) > 0:
+                        target = svf(X[where, :], Y[where, :])
+                        new_target[where, :] = target.reshape(-1, 1)
+                target = new_target
+            else:
+                target = Y
+
+            if target.ndim > 1 and target.shape[1] > 1:
+                raise ValueError("Can only predict on a scalar target")
+            if target.ndim == 1:
+                target = target.reshape(-1, 1)
+            gp = EasyMultiTaskGP.from_default(
+                X, target, task_feature=task_feature
+            )
+
+            # Should be able to change how the gp is fit here
+            gp.fit_mll()
+
+            # Get the current modality of the experiment we're currently
+            # running
+            modality_index = modality_callback(ii)
+
+            # Need to use a posterior transform here to tell the acquisition
+            # function how to weight the multiple outputs
+            weights = np.zeros(shape=(self.n_modalities,))
+            weights[modality_index] = 1.0
+            weights = torch.tensor(weights)
+            transform = ScalarizedPosteriorTransform(weights=weights)
+            acquisition_function_kwargs["posterior_transform"] = transform
+
+            # Ask the model what to do next
+            if acquisition_function in ["EI", "qEI"]:
+                acquisition_function_kwargs["best_f"] = Y[
+                    :, modality_index
+                ].max()
+
+            state = ask(
+                gp.model,
+                acquisition_function,
+                bounds=self.properties.experimental_domain,
+                acquisition_function_kwargs=acquisition_function_kwargs,
+                optimize_acqf_kwargs=optimize_acqf_kwargs,
+            )
+
+            # Update the internal data store with the next points
+            X2 = state["next_points"]
+            self.update_data(X2)
+
+            # Append the history with everything we want to keep
+            # Note that the complete state of the GP is saved in the
+            # acquisition function model
+
+            d = {
+                "iteration": ii,
+                "next_points": state["next_points"],
+                "value": state["value"],
+                "acquisition_function": deepcopy(state["acquisition_function"]),
+                "easy_gp": deepcopy(gp),
+            }
+
+            self.data.history.append(d)

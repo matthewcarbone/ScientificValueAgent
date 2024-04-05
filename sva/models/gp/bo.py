@@ -1,3 +1,5 @@
+from warnings import catch_warnings
+
 import torch
 from botorch.optim import optimize_acqf
 
@@ -81,10 +83,13 @@ def ask(
         acqf = acquisition_function(gp, **kwargs)
 
     kwargs = optimize_acqf_kwargs if optimize_acqf_kwargs else {}
-    next_points, value = optimize_acqf(acqf, bounds=bounds, **kwargs)
+
+    with catch_warnings(record=True) as w:
+        next_points, value = optimize_acqf(acqf, bounds=bounds, **kwargs)
 
     return {
         "next_points": next_points,
         "value": value,
         "acquisition_function": acqf,
+        "warnings": w,
     }

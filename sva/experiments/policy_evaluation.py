@@ -3,6 +3,7 @@ from pathlib import Path
 
 from attrs import define, field, validators
 from joblib import Parallel, delayed
+from monty.json import MSONable
 
 from sva.utils import seed_everything
 
@@ -11,18 +12,19 @@ from .base import ExperimentMixin
 
 
 @define
-class PolicyPerformanceEvaluator:
+class PolicyPerformanceEvaluator(MSONable):
     experiment = field()
 
     @experiment.validator
     def valid_experiment(self, _, value):
-        if not issubclass(value, ExperimentMixin):
+        if not issubclass(value.__class__, ExperimentMixin):
             raise ValueError("Provided experiment must inherit ExperimentMixin")
 
     history = field(factory=list)
 
     checkpoint_dir = field(
-        default=None, validator=validators.instance_of((Path, str))
+        default=None,
+        validator=validators.optional(validators.instance_of((Path, str))),
     )
 
     @staticmethod
@@ -68,7 +70,7 @@ class PolicyPerformanceEvaluator:
         job_seed_str = str(job["job_seed"])
         return f"{acqf_str}-{acqf_kwargs_str}-{job_seed_str}.pkl"
 
-    def run_simulated_campaign(
+    def run(
         self,
         n_steps,
         n_dreams,
@@ -104,6 +106,7 @@ class PolicyPerformanceEvaluator:
         assert len(acquisition_function_kwargs) == len(acquisition_functions)
 
         jobs = []
+        existing_names = [job["checkpoint_name"] for job in self.history]
         for ii, (acqf, acqf_kwargs) in enumerate(
             zip(acquisition_functions, acquisition_function_kwargs)
         ):
@@ -131,7 +134,10 @@ class PolicyPerformanceEvaluator:
                     ckpt_name = self._get_name_from_job(job)
                     ckpt_name = self.checkpoint_dir / Path(ckpt_name)
                 job["checkpoint_name"] = ckpt_name
-                jobs.append(job)
+
+                # We don't want to repeat already completed jobs
+                if job["checkpoint_name"] not in existing_names:
+                    jobs.append(job)
 
         results = Parallel(n_jobs=n_jobs)(
             delayed(self._run_job)(job) for job in jobs

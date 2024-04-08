@@ -425,7 +425,7 @@ class CampaignBaseMixin:
         self,
         n,
         acquisition_function,
-        acquisition_function_kwargs,
+        acquisition_function_kwargs=None,
         svf=None,
         model_factory=EasySingleTaskGP,
         fit_with="mll",
@@ -476,6 +476,9 @@ class CampaignBaseMixin:
                 "num_restarts": 20,
                 "raw_samples": 100,
             }
+
+        if acquisition_function_kwargs is None:
+            acquisition_function_kwargs = {}
 
         loops = self._calculate_remaining_loops(n, optimize_acqf_kwargs["q"])
 

@@ -1,6 +1,10 @@
+import json
 import pickle
+from collections import defaultdict
+from copy import deepcopy
 from pathlib import Path
 
+import numpy as np
 from attrs import define, field, validators
 from joblib import Parallel, delayed
 from monty.json import MSONable
@@ -70,6 +74,77 @@ class PolicyPerformanceEvaluator(MSONable):
         job_seed_str = str(job["job_seed"])
         return f"{acqf_str}-{acqf_kwargs_str}-{job_seed_str}.pkl"
 
+    def process_results(self, results=None):
+        """Processes the saved history (or provided results) into a
+        statistical analysis. Results are grouped by the combination of
+        acquisition function signature and its keyword arguments (all json-
+        serialized).
+
+        Parameters
+        ----------
+        results : list
+            The results to process. If None, uses the results saved in the
+            history. Generally, leaving this as None is probably the correct
+            way to go.
+
+        Returns
+        -------
+        dict
+        """
+
+        if results is None:
+            results = self.history
+
+        tmp0 = defaultdict(list)
+        for result in results:
+            # Get some string representation of the combination of the
+            # acquisition function and its keyword arguments for grouping
+            # the results together
+            key = json.dumps(
+                [
+                    result["acquisition_function"],
+                    result["acquisition_function_kwargs"],
+                ]
+            )
+            tmp0[key].append(result)
+
+        to_return = {}
+        for key, policy_results in tmp0.items():
+            tmp2 = []
+            for job in policy_results:
+                # For each job, get the ground truth "dreamed" experiment
+                exp = job["experiment"]
+
+                # Find the x coordinate corresponding to the maximum y-value
+                # in the experiment
+                x_star = exp.metadata["optima"]["next_points"].numpy()
+
+                # Take that x coordinate and find its corresponding value.
+                # Note that we should not take the result directly from the
+                # optima "value" key, since this is likely scaled by some
+                # output scaler. The following line gets the unscaled value
+                # directly.
+                y_star, _ = exp(x_star)
+
+                tmp = []
+
+                # For each step in that experiment's history
+                for step in exp.history:
+                    # Find the x coordinate of the next point, which will
+                    # depend on the acquisition function of the experiment
+                    x_step_star = step["optimize_gp"]["next_points"].numpy()
+
+                    # Get the corresponding y value
+                    y_step_star = exp(x_step_star)
+
+                    # Calculate the normalized opportunity cost of this value
+                    cost = np.abs(y_star - y_step_star) / np.abs(y_star)
+                    tmp.append(cost)
+                tmp2.append(tmp)
+
+            to_return[key] = np.array(tmp2)
+        return to_return
+
     def run(
         self,
         n_steps,
@@ -80,8 +155,10 @@ class PolicyPerformanceEvaluator(MSONable):
         n_jobs=12,
         seed=123,
     ):
-        """
-        parameters
+        """Runs a policy performance evaluation on the experiment provided
+        at initialization. Results are saved in the history attribute.
+
+        Parameters
         ----------
         n_steps : int
             the number of steps to take in each simulated experiments (the number
@@ -107,19 +184,29 @@ class PolicyPerformanceEvaluator(MSONable):
 
         jobs = []
         existing_names = [job["checkpoint_name"] for job in self.history]
-        for ii, (acqf, acqf_kwargs) in enumerate(
+        experiment = deepcopy(self.experiment)
+
+        for _, (acqf, acqf_kwargs) in enumerate(
             zip(acquisition_functions, acquisition_function_kwargs)
         ):
+            if acqf_kwargs is not None and len(acqf_kwargs) == 0:
+                acqf_kwargs = None
             for dream_index in range(n_dreams):
-                dream_experiment = get_dreamed_experiment(
-                    self.experiment.data.X,
-                    self.experiment.data.Y,
-                    self.experiment.properties.experimental_domain,
-                )
+                # Get the current seed and seed the current dreamed experiment
+                # if the seed is provided
                 job_seed = None
                 if seed is not None:
-                    job_seed = seed + ii * n_dreams + dream_index
+                    job_seed = seed + dream_index
+                    seed_everything(job_seed)
 
+                # Get the dreamed experiment
+                dream_experiment = get_dreamed_experiment(
+                    deepcopy(experiment.data.X),
+                    deepcopy(experiment.data.Y),
+                    experiment.properties.experimental_domain,
+                )
+
+                # Setup the job payload
                 job = {
                     "job_seed": job_seed,
                     "dream_index": dream_index,

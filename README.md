@@ -9,12 +9,8 @@
 The Scientific Value Agent (SVA) is a collection of tools for Gaussian Process (GP)-based Bayesian Optimization, particularly for use in epistemic experimentation (experiments in which you know nothing, have nothing to optimize and want to simply explore the experimental space as completely as you can).
 
 > [!NOTE]
-> If you use the Scientific Value Agent, please consider citing our [manuscript](https://doi.org/10.1016/j.matt.2023.11.012) in Matter. The software corresponding to this manuscript is tagged as [`v1.1.0`](https://github.com/matthewcarbone/ScientificValueAgent/releases/tag/v1.1.0).
-> Note that this code is currently only usable with CPU. Make sure you run
-> ```bash
-> export CUDA_VISIBLE_DEVICES=""
-> ```
-> or something similar before doing any training.
+> If you use the Scientific Value Agent, please consider citing our [manuscript](https://doi.org/10.1016/j.matt.2023.11.012) in Matter. The software corresponding to this manuscript is tagged as [`v1.1.0`](https://github.com/matthewcarbone/ScientificValueAgent/tree/v1.1.0).
+
 
 # 🚀 Examples
 

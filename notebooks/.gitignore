@@ -2,3 +2,4 @@
 *.svg
 *.pkl
 tmp/
+xx*.ipynb

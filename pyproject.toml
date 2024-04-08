@@ -31,7 +31,7 @@ dependencies = [
     "attrs",
     "numpy",
     "pandas",
-    "scipy==1.12.0",
+    "scipy==1.13.0",
     "scikit-learn",
     "tqdm",
     # Specific install of monty for now

@@ -549,6 +549,20 @@ class CampaignBaseMixin:
             self.update_data(state["next_points"])
 
 
+@define
+class DynamicExperiment(ExperimentMixin, CampaignBaseMixin):
+    gp = field()
+    properties = field()
+    data = field()
+    noise = field(default=None, validator=validators.instance_of(NOISE_TYPES))
+    history = field(factory=lambda: ExperimentHistory())
+    metadata = field(factory=dict)
+
+    def _truth(self, x):
+        mu, _ = self.gp.predict(x)
+        return mu.reshape(-1, 1)
+
+
 def get_dreamed_experiment(
     X,
     Y,
@@ -605,33 +619,16 @@ def get_dreamed_experiment(
     dreamed_gp = gp.dream(ppd=ppd, domain=domain)
     n_input_dim = dreamed_gp.model.train_inputs[0].shape[1]
 
-    @define
-    class DynamicExperiment(ExperimentMixin, CampaignBaseMixin):
-        _gp = deepcopy(dreamed_gp)
-        properties = field(
-            factory=lambda: ExperimentProperties(
-                n_input_dim=n_input_dim,
-                n_output_dim=1,
-                valid_domain=None,
-                experimental_domain=domain,
-            )
-        )
-        noise = field(
-            default=None, validator=validators.instance_of(NOISE_TYPES)
-        )
-        data = field(factory=lambda: ExperimentData(X=X, Y=Y))
-        history = field(factory=lambda: ExperimentHistory())
-        metadata = field(factory=dict)
+    properties = ExperimentProperties(
+        n_input_dim=n_input_dim,
+        n_output_dim=1,
+        valid_domain=None,
+        experimental_domain=domain,
+    )
+    data = ExperimentData(X=X, Y=Y)
 
-        def _truth(self, x):
-            mu, _ = self._gp.predict(x)
-            return mu.reshape(-1, 1)
-
-    del gp
-    del dreamed_gp
-
-    exp = DynamicExperiment()
-    exp.metadata["optima"] = exp._gp.optimize(
+    exp = DynamicExperiment(gp=dreamed_gp, properties=properties, data=data)
+    exp.metadata["optima"] = exp.gp.optimize(
         domain=domain, num_restarts=num_restarts, raw_samples=raw_samples
     )
     return exp

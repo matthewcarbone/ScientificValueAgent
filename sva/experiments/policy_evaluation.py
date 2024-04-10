@@ -31,6 +31,11 @@ class PolicyPerformanceEvaluator(MSONable):
         validator=validators.optional(validators.instance_of((Path, str))),
     )
 
+    def __attrs_post_init__(self):
+        if self.checkpoint_dir is not None:
+            self.checkpoint_dir = Path(self.checkpoint_dir)
+            self.checkpoint_dir.mkdir(exist_ok=True, parents=True)
+
     @staticmethod
     def _run_job(job):
         """Helper method for multiprocessing in the main function."""
@@ -125,6 +130,7 @@ class PolicyPerformanceEvaluator(MSONable):
                 # output scaler. The following line gets the unscaled value
                 # directly.
                 y_star, _ = exp(x_star)
+                y_star = y_star.squeeze()
 
                 tmp = []
 
@@ -135,7 +141,8 @@ class PolicyPerformanceEvaluator(MSONable):
                     x_step_star = step["optimize_gp"]["next_points"].numpy()
 
                     # Get the corresponding y value
-                    y_step_star = exp(x_step_star)
+                    y_step_star, _ = exp(x_step_star)
+                    y_step_star = y_step_star.squeeze()
 
                     # Calculate the normalized opportunity cost of this value
                     cost = np.abs(y_star - y_step_star) / np.abs(y_star)

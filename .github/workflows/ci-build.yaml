@@ -6,8 +6,8 @@ on:
 
 jobs:
 
-  # unit:
-  #   uses: ./.github/workflows/unit.yaml
+  style_syntax:
+    uses: ./.github/workflows/style_syntax.yaml
 
   notebook:
     uses: ./.github/workflows/notebook_smoke.yaml

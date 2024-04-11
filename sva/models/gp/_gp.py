@@ -151,7 +151,8 @@ def get_simple_model(
 
 
 # # From the GPyTorch tutorials
-# # https://docs.gpytorch.ai/en/stable/examples/01_Exact_GPs/GP_Regression_on_Classification_Labels.html
+# # https://docs.gpytorch.ai/en/stable/examples/01_Exact_GPs
+# /GP_Regression_on_Classification_Labels.html
 # # TODO: make this a bit more flexible in terms of the kernels and whatnot
 # class DirichletGPModel(gpytorch.models.ExactGP):
 # # we can pass to it
@@ -374,7 +375,8 @@ class GPMixin:
 
         if "q" in kwargs:
             warn(
-                "q has been provided to the optimizer but will be overridden to 1"
+                "q has been provided to the optimizer but will be "
+                "overridden to 1"
             )
             kwargs["q"] = 1
         else:

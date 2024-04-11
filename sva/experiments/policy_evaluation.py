@@ -168,11 +168,11 @@ class PolicyPerformanceEvaluator(MSONable):
         Parameters
         ----------
         n_steps : int
-            the number of steps to take in each simulated experiments (the number
-            of experiments to run/new data points to sample).
+            the number of steps to take in each simulated experiments (the
+            number of experiments to run/new data points to sample).
         n_dreams : int
-            the number of samples from the gp fit on the original data to run the
-            simulations over.
+            the number of samples from the gp fit on the original data to run
+            the simulations over.
         acquisition_functions : list
             a list of acquisition functions or signatures to test during the
             campaign.

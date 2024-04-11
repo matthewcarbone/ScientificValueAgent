@@ -2,7 +2,7 @@
 
 # The Scientific Value Agent
 
-[![image](https://github.com/matthewcarbone/ScientificValueAgent/actions/workflows/ci.yaml/badge.svg)](https://github.com/matthewcarbone/ScientificValueAgent/actions/workflows/ci.yaml)
+[![image](https://github.com/matthewcarbone/ScientificValueAgent/actions/workflows/ci-deploy.yaml/badge.svg)](https://github.com/matthewcarbone/ScientificValueAgent/actions/workflows/ci-deploy.yaml)
 
 </div>
 

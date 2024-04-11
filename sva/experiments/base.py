@@ -10,7 +10,6 @@ from botorch.acquisition.objective import ScalarizedPosteriorTransform
 from monty.json import MSONable
 from tqdm import tqdm
 
-from sva import __version__
 from sva.models.gp import EasyMultiTaskGP, EasySingleTaskGP
 from sva.models.gp.bo import ask, is_EI
 from sva.utils import get_coordinates, get_random_points

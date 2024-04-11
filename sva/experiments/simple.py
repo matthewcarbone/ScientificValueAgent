@@ -1,5 +1,3 @@
-from functools import cached_property
-
 import numpy as np
 from attrs import define, field, validators
 from monty.json import MSONable
@@ -123,7 +121,8 @@ class NegatedGramacyLeeFunction(ExperimentMixin, MSONable):
 #     """
 
 #     train_x = torch.linspace(0, 1, 100)
-#     train_y = torch.cos(train_x * 2 * math.pi) + torch.randn(100).mul(train_x.pow(3) * 1.)
+#     train_y = torch.cos(train_x * 2 * math.pi)
+#     + torch.randn(100).mul(train_x.pow(3) * 1.)
 
 #     fig, ax = plt.subplots(1, 1, figsize=(5, 3))
 #     ax.scatter(train_x, train_y, c='k', marker='.', label="Data")

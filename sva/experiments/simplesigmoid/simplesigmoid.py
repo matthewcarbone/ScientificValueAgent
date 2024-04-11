@@ -1,5 +1,3 @@
-from functools import cached_property
-
 import numpy as np
 from attrs import define, field, validators
 from monty.json import MSONable

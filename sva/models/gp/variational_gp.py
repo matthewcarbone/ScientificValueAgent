@@ -6,25 +6,16 @@ https://docs.gpytorch.ai/en/v1.6.0/examples/04_Variational_and_Approximate_GPs/A
 """
 
 from copy import deepcopy
-from functools import cached_property
-from monty.json import MSONable
 
-from attrs import define, field, validators
 from botorch.fit import fit_gpytorch_mll
 from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
 from botorch.models import SingleTaskGP, FixedNoiseGP
-from botorch.optim import optimize_acqf
-from botorch.acquisition import UpperConfidenceBound
 import gpytorch
-import numpy as np
 import torch
 
 from sva.utils import Timer
 from sva.models.gp.common import set_train_, set_eval_
-from sva._campaign import BaseCampaign
-from sva.utils import get_grid
-from sva.value import svf
 
 
 class ApproximateGPModel(gpytorch.models.ApproximateGP):
@@ -115,7 +106,6 @@ def get_model(
         return ApproximateGPModel(X, mean_module, covar_module)
 
     else:
-
         # Likelihood argument is ignored here
         model = FixedNoiseGP(
             train_X=X,

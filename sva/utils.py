@@ -243,9 +243,9 @@ def set_mpl_grids(
 def legend_without_duplicate_labels(ax, **kwargs):
     handles, labels = ax.get_legend_handles_labels()
     unique = [
-        (h, l)
-        for i, (h, l) in enumerate(zip(handles, labels))
-        if l not in labels[:i]
+        (h, _label)
+        for i, (h, _label) in enumerate(zip(handles, labels))
+        if _label not in labels[:i]
     ]
     ax.legend(*zip(*unique), **kwargs)
 

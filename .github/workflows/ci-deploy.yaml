@@ -1,4 +1,4 @@
-name: CI/Build
+name: deploy
 
 on:
   push:
@@ -23,11 +23,12 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/ScientificValueAgent
+      url: https://pypi.org/p/sva
     permissions:
       id-token: write
 
     needs:
+      - style_syntax
       - notebook
 
     steps:

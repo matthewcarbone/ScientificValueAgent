@@ -37,11 +37,11 @@ dependencies = [
     # Specific install of monty for now
     # "git+https://github.com/matthewcarbone/monty@mc-dev-653",
     "monty @ git+https://github.com/matthewcarbone/monty@mc-dev-653",
-    "torch>=2.0.0",
+    "torch==2.0.0",
     "gpytorch==1.11.0",
     "botorch==0.9.2",
     "pyyaml",
-    "pyastronomy>=0.20.0",
+    "pyastronomy==0.20.0",
 ]
 
 [project.optional-dependencies]

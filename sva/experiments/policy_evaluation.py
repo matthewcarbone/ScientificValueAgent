@@ -11,7 +11,7 @@ from monty.json import MSONable
 
 from sva.utils import seed_everything
 
-from . import get_dreamed_experiment
+from . import DynamicExperiment
 from .base import ExperimentMixin
 
 
@@ -62,10 +62,6 @@ class PolicyPerformanceEvaluator(MSONable):
             pbar=False,
         )
         job["experiment"] = experiment
-
-        ii = job["dream_index"]
-        print(f"done with {str(acqf)}, {str(acqf_kwargs)}, {ii}")
-
         if ckpt_name is not None:
             protocol = pickle.HIGHEST_PROTOCOL
             pickle.dump(job, open(ckpt_name, "wb"), protocol=protocol)
@@ -207,7 +203,7 @@ class PolicyPerformanceEvaluator(MSONable):
                     seed_everything(job_seed)
 
                 # Get the dreamed experiment
-                dream_experiment = get_dreamed_experiment(
+                dream_experiment = DynamicExperiment.from_data(
                     deepcopy(experiment.data.X),
                     deepcopy(experiment.data.Y),
                     experiment.properties.experimental_domain,

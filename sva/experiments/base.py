@@ -550,80 +550,82 @@ class DynamicExperiment(ExperimentMixin, CampaignBaseMixin):
     history = field(factory=lambda: ExperimentHistory())
     metadata = field(factory=dict)
 
+    @classmethod
+    def from_data(
+        cls,
+        X,
+        Y,
+        domain,
+        train_protocol="mll",
+        dream_ppd=20,
+        gp_optimize_kwargs={"num_restarts": 150, "raw_samples": 150},
+    ):
+        """Creates an Experiment object from data alone. This is done via the
+        following steps.
+
+        1. A standard single task GP is fit to the data.
+        2. A sample is drawn from that GP.
+        3. That sample itself is fit by another GP.
+        4. The mean of this GP is now the experiment in question. Running
+        experiment(x) will produce the mean of this function as the prediction.
+
+        Parameters
+        ----------
+        X, Y : np.ndarray
+            The input and output data of the experiment. Since this will be
+            approximated with a single task GP, Y must be one-dimensional.
+        domain : np.ndarray
+            The experimental domain of the problem. Must be of shape (2, d),
+            where d is the dimensionality of the input.
+        train_protocol : dict or str
+            The protocol and its keyword arguments. Must be a method defined on
+            the EasyGP. For example: {"method": "fit_Adam", "kwargs": None}. If
+            only a string is provided, attemps that method with no keyword args.
+        adam_kwargs : dict, optional
+            Keyword arguments to pass to the Adam optimizer, if selected.
+        dream_ppd : int
+            The number of points-per-dimension used in the dreamed GP.
+        gp_optimize_kwargs : dict
+            Keyword arguments to pass to BoTorch's acquisition function
+            optimizers.
+
+        Returns
+        -------
+        DynamicExperiment
+        """
+
+        if isinstance(train_protocol, str):
+            train_method = train_protocol
+            train_kwargs = {}
+        elif isinstance(train_protocol, dict):
+            train_method = train_protocol["method"]
+            train_kwargs = train_protocol["kwargs"]
+        else:
+            raise ValueError(f"Invalid train_protocol {train_protocol}")
+
+        gp = EasySingleTaskGP.from_default(X, Y)
+        getattr(gp, train_method)(**train_kwargs)
+
+        dreamed_gp = gp.dream(ppd=dream_ppd, domain=domain)
+        n_input_dim = dreamed_gp.model.train_inputs[0].shape[1]
+
+        properties = ExperimentProperties(
+            n_input_dim=n_input_dim,
+            n_output_dim=1,
+            valid_domain=None,
+            experimental_domain=domain,
+        )
+        data = ExperimentData(X=X, Y=Y)
+
+        exp = cls(gp=dreamed_gp, properties=properties, data=data)
+        exp.metadata["optima"] = exp.gp.optimize(
+            domain=domain, **gp_optimize_kwargs
+        )
+        return exp
+
     def _truth(self, x):
         mu, _ = self.gp.predict(x)
         return mu.reshape(-1, 1)
-
-
-def get_dreamed_experiment(
-    X,
-    Y,
-    domain,
-    train_with="mll",
-    adam_kwargs=None,
-    ppd=20,
-    num_restarts=150,
-    raw_samples=150,
-):
-    """Creates an Experiment object from data alone. This is done via the
-    following steps.
-
-    1. A standard single task GP is fit to the data.
-    2. A sample is drawn from that GP.
-    3. That sample itself is fit by another GP.
-    4. The mean of this GP is now the experiment in question. Running
-    experiment(x) will produce the mean of this function as the prediction.
-
-    Parameters
-    ----------
-    X, Y : np.ndarray
-        The input and output data of the experiment. Since this will be
-        approximated with a single task GP, Y must be one-dimensional.
-    domain : np.ndarray
-        The experimental domain of the problem. Must be of shape (2, d), where
-        d is the dimensionality of the input.
-    train_with : str, optional
-        The training protocol for the GP approximator. Must be in
-        {"Adam", "mll"}. Default is "mll".
-    adam_kwargs : dict, optional
-        Keyword arguments to pass to the Adam optimizer, if selected.
-    ppd : int
-        The number of points-per-dimension used in the dreamed GP.
-    num_restarts, raw_samples : int
-        Keyword arguments to pass to BoTorch's acquisition function optimizers.
-
-    Returns
-    -------
-    DynamicExperiment
-    """
-
-    if train_with not in ["Adam", "mll"]:
-        raise ValueError("train_with must be one of Adam or mll")
-
-    gp = EasySingleTaskGP.from_default(X, Y)
-
-    if train_with == "mll":
-        gp.fit_mll()
-    else:
-        adam_kwargs = adam_kwargs if adam_kwargs is not None else dict()
-        gp.fit_Adam(**adam_kwargs)
-
-    dreamed_gp = gp.dream(ppd=ppd, domain=domain)
-    n_input_dim = dreamed_gp.model.train_inputs[0].shape[1]
-
-    properties = ExperimentProperties(
-        n_input_dim=n_input_dim,
-        n_output_dim=1,
-        valid_domain=None,
-        experimental_domain=domain,
-    )
-    data = ExperimentData(X=X, Y=Y)
-
-    exp = DynamicExperiment(gp=dreamed_gp, properties=properties, data=data)
-    exp.metadata["optima"] = exp.gp.optimize(
-        domain=domain, num_restarts=num_restarts, raw_samples=raw_samples
-    )
-    return exp
 
 
 # WARNING: This is not really functional yet

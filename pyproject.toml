@@ -36,7 +36,7 @@ dependencies = [
     "tqdm",
     # Specific install of monty for now
     # "git+https://github.com/matthewcarbone/monty@mc-dev-653",
-    "monty @ git+https://github.com/matthewcarbone/monty@mc-dev-653",
+    "monty @ git+https://github.com/materialsvirtuallab/monty.git@a11cd9f",
     "torch==2.0.0",
     "gpytorch==1.11.0",
     "botorch==0.9.2",

@@ -153,7 +153,6 @@ class PolicyPerformanceEvaluator(MSONable):
         n_steps,
         n_dreams,
         acquisition_functions,
-        acquisition_function_kwargs,
         optimize_acqf_kwargs=None,
         n_jobs=12,
         seed=123,
@@ -170,10 +169,8 @@ class PolicyPerformanceEvaluator(MSONable):
             the number of samples from the gp fit on the original data to run
             the simulations over.
         acquisition_functions : list
-            a list of acquisition functions or signatures to test during the
-            campaign.
-        acquisition_function_kwargs : list
-            a list of keyword arguments to pass to the acquisition functions.
+            A list of acquisition functions or signatures to test during the
+            campaign. Each entry must contain keys "acqf" and "acqf_kwargs".
         n_jobs : int
             number of parallel multiprocessing jobs to use at a time.
         seed : int, optional
@@ -183,15 +180,13 @@ class PolicyPerformanceEvaluator(MSONable):
             be called internally.
         """
 
-        assert len(acquisition_function_kwargs) == len(acquisition_functions)
-
         jobs = []
         existing_names = [job["checkpoint_name"] for job in self.history]
         experiment = deepcopy(self.experiment)
 
-        for _, (acqf, acqf_kwargs) in enumerate(
-            zip(acquisition_functions, acquisition_function_kwargs)
-        ):
+        for _, acqf_value in enumerate(acquisition_functions):
+            acqf = acqf_value["acqf"]
+            acqf_kwargs = acqf_value["acqf_kwargs"]
             if acqf_kwargs is not None and len(acqf_kwargs) == 0:
                 acqf_kwargs = None
             for dream_index in range(n_dreams):

@@ -556,7 +556,7 @@ class DynamicExperiment(ExperimentMixin, CampaignBaseMixin):
         X,
         Y,
         domain,
-        train_protocol="mll",
+        train_protocol="fit_mll",
         dream_ppd=20,
         gp_optimize_kwargs={"num_restarts": 150, "raw_samples": 150},
     ):

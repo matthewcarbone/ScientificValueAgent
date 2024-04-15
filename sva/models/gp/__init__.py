@@ -1,8 +1,4 @@
-from sva.models.gp._gp import (
-    EasyFixedNoiseGP,
-    EasyMultiTaskGP,
-    EasySingleTaskGP,
-)
+from sva.models.gp.gp import EasyFixedNoiseGP, EasyMultiTaskGP, EasySingleTaskGP
 
 __all__ = [
     "EasySingleTaskGP",

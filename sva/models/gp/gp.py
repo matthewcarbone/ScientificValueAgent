@@ -1,4 +1,4 @@
-"""Module containinj helpers for single task GPs written in gpytorch and
+"""Module containing helpers for single task GPs written in gpytorch and
 botorch."""
 
 import pickle

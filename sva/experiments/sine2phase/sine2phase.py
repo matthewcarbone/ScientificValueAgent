@@ -7,6 +7,7 @@ from PyAstronomy.pyasl import broadGaussFast
 
 from sva.experiments.base import (
     NOISE_TYPES,
+    CampaignBaseMixin,
     ExperimentData,
     ExperimentHistory,
     ExperimentMixin,
@@ -72,7 +73,7 @@ def _get_phase_from_proportion(x, x0, a, gaussian_x0, gaussian_sd):
 
 
 @define
-class Sine2Phase(ExperimentMixin, MSONable):
+class Sine2Phase(ExperimentMixin, CampaignBaseMixin, MSONable):
     properties = field(
         factory=lambda: ExperimentProperties(
             n_input_dim=2,

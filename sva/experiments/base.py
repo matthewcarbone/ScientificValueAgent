@@ -10,7 +10,7 @@ from botorch.acquisition.objective import ScalarizedPosteriorTransform
 from monty.json import MSONable
 from tqdm import tqdm
 
-from sva.models.gp import EasyMultiTaskGP, EasySingleTaskGP
+from sva.models.gp import EasyMultiTaskGP, EasySingleTaskGP, get_train_protocol
 from sva.models.gp.bo import ask, is_EI
 from sva.utils import get_coordinates, get_random_points
 
@@ -96,11 +96,6 @@ class ExperimentHistory(MSONable):
         assert all([isinstance(xx, dict) for xx in x])
         self.history.extend(x)
 
-    # def as_dict(self):
-    #     """Override MSONable here. We have to save the history separately."""
-    #
-    #     return {"history": "_UNSET"}
-
     def __len__(self):
         return len(self.history)
 
@@ -150,8 +145,8 @@ class ExperimentMixin(ABC):
 
     def _variance(self, _):
         """Vectorized truth of the variance of the experiment. Distinct from
-        the 'noise' property, this method returns the errorbar (one standard
-        deviation) on the observed results. By default, this returns None,
+        the 'noise' property, this method returns the variance (one standard
+        deviation^2) on the observed results. By default, this returns None,
         which is distinct from 0 (there's a difference between having a
         completely precise observation, returning 0, and having no knowledge
         of the noise, returning None)."""
@@ -383,18 +378,6 @@ class CampaignBaseMixin:
         loops = np.ceil(remaining / q)
         return int(loops)
 
-    @staticmethod
-    def _fit(gp, fit_with, fit_kwargs):
-        fit_kwargs = fit_kwargs if fit_kwargs is not None else {}
-        if fit_with == "mll":
-            gp.fit_mll(**fit_kwargs)
-        elif fit_with == "Adam":
-            gp.fit_Adam(**fit_kwargs)
-        else:
-            raise ValueError(
-                f"train_with is {fit_with} but must be one of mll or Adam"
-            )
-
     def _ask(
         self,
         gp,
@@ -419,13 +402,10 @@ class CampaignBaseMixin:
         acquisition_function,
         acquisition_function_kwargs=None,
         svf=None,
-        model_factory=EasySingleTaskGP,
-        fit_with="mll",
-        fit_kwargs=None,
+        model_factory=EasySingleTaskGP.from_default,
+        train_protocol="fit_mll",
         optimize_acqf_kwargs=None,
-        optimize_gp=False,
-        num_restarts=150,
-        raw_samples=150,
+        optimize_gp_kwargs=None,
         pbar=True,
     ):
         """Executes the campaign by running many sequential experiments.
@@ -443,21 +423,21 @@ class CampaignBaseMixin:
         svf
             If None, does standard optimization. Otherwise, uses the
             Scientific Value Agent transformation.
-        fit_with : str
-            Either "mll" or "Adam". Defines how the GP is fit
-        fit_kwargs : dict, optional
-            The keyword arguments to fit to the fitting procedure. Default
-            is None.
+        model_factory : callable
+            A factory that returns a GP model.
+        train_protocol : dict or str
+            The protocol and its keyword arguments. Must be a method defined on
+            the EasyGP. For example: {"method": "fit_Adam", "kwargs": None}. If
+            only a string is provided, attemps that method with no keyword args.
+            This is the training protocol used to fit the dreamed GP.
         optimize_acqf_kwargs : dict, optional
             Keyword arguments to pass to the optimizer of the acquisition
             function. Sensible defaults are set if this is not provided,
             including sequential (q=1) optimization.
-        optimize_gp : bool
-            If True, will perform an optimization step over the fitted GP at
-            every step of the experiment, finding its maxima using the fully
+        optimize_gp_kwargs : dict, optional
+            If not None, will perform an optimization step over the fitted GP
+            at every step of the experiment, finding its maxima using the fully
             exploitative UCB(beta=0) acquisition function.
-        num_restarts, raw_samples : int
-            Parameters to pass to the BoTorch optimization scheme.
         pbar : bool
             Whether or not to display the tqdm progress bar.
         """
@@ -468,9 +448,6 @@ class CampaignBaseMixin:
                 "num_restarts": 20,
                 "raw_samples": 100,
             }
-
-        if acquisition_function_kwargs is None:
-            acquisition_function_kwargs = {}
 
         loops = self._calculate_remaining_loops(n, optimize_acqf_kwargs["q"])
 
@@ -496,10 +473,11 @@ class CampaignBaseMixin:
             args = [X, Y]
             if Yvar is None:
                 args.append(Yvar)
-            gp = model_factory.from_default(*args)
+            gp = model_factory(*args)
 
             # Fit the model
-            self._fit(gp, fit_with, fit_kwargs)
+            train_method, train_kwargs = get_train_protocol(train_protocol)
+            getattr(gp, train_method)(**train_kwargs)
 
             # Ask the model what to do next, we're also careful to check for
             # the best_f required keyword argument in the case of an EI
@@ -527,12 +505,8 @@ class CampaignBaseMixin:
             # to get the maximum value of that GP in the experimental space.
             # This is useful for simulated campaigning and is disabled by
             # default.
-            if optimize_gp:
-                r = gp.optimize(
-                    experiment=self,
-                    num_restarts=num_restarts,
-                    raw_samples=raw_samples,
-                )
+            if optimize_gp_kwargs is not None:
+                r = gp.optimize(experiment=self, **optimize_gp_kwargs)
                 r.pop("acquisition_function")
                 d["optimize_gp"] = r
 
@@ -558,7 +532,7 @@ class DynamicExperiment(ExperimentMixin, CampaignBaseMixin):
         domain,
         train_protocol="fit_mll",
         dream_ppd=20,
-        gp_optimize_kwargs={"num_restarts": 150, "raw_samples": 150},
+        optimize_gp_kwargs=None,
     ):
         """Creates an Experiment object from data alone. This is done via the
         following steps.
@@ -581,11 +555,12 @@ class DynamicExperiment(ExperimentMixin, CampaignBaseMixin):
             The protocol and its keyword arguments. Must be a method defined on
             the EasyGP. For example: {"method": "fit_Adam", "kwargs": None}. If
             only a string is provided, attemps that method with no keyword args.
+            This is the training protocol used to fit the dreamed GP.
         adam_kwargs : dict, optional
             Keyword arguments to pass to the Adam optimizer, if selected.
         dream_ppd : int
             The number of points-per-dimension used in the dreamed GP.
-        gp_optimize_kwargs : dict
+        optimize_gp_kwargs : dict
             Keyword arguments to pass to BoTorch's acquisition function
             optimizers.
 
@@ -594,14 +569,7 @@ class DynamicExperiment(ExperimentMixin, CampaignBaseMixin):
         DynamicExperiment
         """
 
-        if isinstance(train_protocol, str):
-            train_method = train_protocol
-            train_kwargs = {}
-        elif isinstance(train_protocol, dict):
-            train_method = train_protocol["method"]
-            train_kwargs = train_protocol["kwargs"]
-        else:
-            raise ValueError(f"Invalid train_protocol {train_protocol}")
+        train_method, train_kwargs = get_train_protocol(train_protocol)
 
         gp = EasySingleTaskGP.from_default(X, Y)
         getattr(gp, train_method)(**train_kwargs)
@@ -618,8 +586,11 @@ class DynamicExperiment(ExperimentMixin, CampaignBaseMixin):
         data = ExperimentData(X=X, Y=Y)
 
         exp = cls(gp=dreamed_gp, properties=properties, data=data)
+
+        if optimize_gp_kwargs is None:
+            optimize_gp_kwargs = {"num_restarts": 150, "raw_samples": 150}
         exp.metadata["optima"] = exp.gp.optimize(
-            domain=domain, **gp_optimize_kwargs
+            domain=domain, **optimize_gp_kwargs
         )
         return exp
 
@@ -658,8 +629,8 @@ class MultimodalExperimentMixin(ExperimentMixin):
             if not np.all(check1 & check2):
                 raise ValueError("Some inputs x were not in the domain")
 
-    def get_random_coordinates(self, n, domain=None, modality=0):
-        x = super().get_random_coordinates(n, domain)
+    def get_random_coordinates(self, n, modality=0):
+        x = super().get_random_coordinates(n)
         n = x.shape[0]
         modality_array = np.zeros((n, 1)) + modality
         return np.concatenate([x, modality_array], axis=1)
@@ -683,7 +654,7 @@ class MultimodalExperimentMixin(ExperimentMixin):
         np.ndarray
         """
 
-        x = super().get_dense_coordinates(ppd, domain=domain)
+        x = super().get_dense_coordinates(ppd)
         n = x.shape[0]
         modality_array = np.zeros((n, 1)) + modality
         return np.concatenate([x, modality_array], axis=1)
@@ -703,7 +674,7 @@ class MultimodalExperimentMixin(ExperimentMixin):
         """
 
         if protocol == "random":
-            X = self.get_random_coordinates(n=n)
+            X = self.get_random_coordinates(n=n, modality=modality)
         else:
             raise NotImplementedError(f"Unknown provided protocol {protocol}")
         self.update_data(X)

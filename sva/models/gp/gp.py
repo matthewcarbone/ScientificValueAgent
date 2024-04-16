@@ -150,6 +150,34 @@ def get_simple_model(
     return deepcopy(model)
 
 
+def get_train_protocol(train_protocol):
+    """Gets the training protocol and keyword arguments from the string or
+    dict train_protocol input.
+
+    Parameters
+    ----------
+    train_protocol : dict or str
+        The protocol and its keyword arguments. Must be a method defined on
+        the EasyGP. For example: {"method": "fit_Adam", "kwargs": None}. If
+        only a string is provided, attemps that method with no keyword args.
+
+    Returns
+    -------
+    tuple
+        The training method (str) and keyword arguments (dict)
+    """
+
+    if isinstance(train_protocol, str):
+        train_method = train_protocol
+        train_kwargs = {}
+    elif isinstance(train_protocol, dict):
+        train_method = train_protocol["method"]
+        train_kwargs = train_protocol["kwargs"]
+    else:
+        raise ValueError(f"Invalid train_protocol {train_protocol}")
+    return train_method, train_kwargs
+
+
 # # From the GPyTorch tutorials
 # # https://docs.gpytorch.ai/en/stable/examples/01_Exact_GPs
 # /GP_Regression_on_Classification_Labels.html

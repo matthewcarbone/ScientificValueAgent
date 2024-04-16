@@ -58,7 +58,7 @@ class PolicyPerformanceEvaluator(MSONable):
             acqf,
             acqf_kwargs,
             optimize_acqf_kwargs=optimize_acqf_kwargs,
-            optimize_gp=True,
+            optimize_gp_kwargs=None,
             pbar=False,
         )
         job["experiment"] = experiment

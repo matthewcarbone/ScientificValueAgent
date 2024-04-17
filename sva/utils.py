@@ -4,12 +4,21 @@ from importlib import import_module
 from itertools import product
 from os import environ
 from time import perf_counter
+from warnings import warn
 
-import matplotlib as mpl
-import matplotlib.pyplot as plt
+try:
+    import matplotlib as mpl
+    import matplotlib.pyplot as plt
+    from mpl_toolkits import axes_grid1
+
+    MPL_INSTALLED = True
+except ImportError:
+    mpl = None
+    plt = None
+    axes_grid1 = None
+    MPL_INSTALLED = False
 import numpy as np
 import torch
-from mpl_toolkits import axes_grid1
 from scipy.spatial import distance_matrix
 
 
@@ -205,6 +214,9 @@ def get_function_from_signature(signature):
 
 
 def set_mpl_defaults(labelsize=12, dpi=250):
+    if not MPL_INSTALLED:
+        warn("Matplotlib is not installed")
+        return
     mpl.rcParams["mathtext.fontset"] = "stix"
     mpl.rcParams["font.family"] = "STIXGeneral"
     if environ.get("DISABLE_LATEX"):
@@ -227,6 +239,9 @@ def set_mpl_grids(
     right=True,
     top=True,
 ):
+    if not MPL_INSTALLED:
+        warn("Matplotlib is not installed")
+        return
     if minorticks:
         ax.minorticks_on()
 
@@ -258,6 +273,10 @@ def add_colorbar(
     im, aspect=10, pad_fraction=0.5, integral_ticks=None, **kwargs
 ):
     """Add a vertical color bar to an image plot."""
+
+    if not MPL_INSTALLED:
+        warn("Matplotlib is not installed")
+        return
 
     # https://stackoverflow.com/questions/18195758/set-matplotlib-colorbar-size-to-match-graph
     divider = axes_grid1.make_axes_locatable(im.axes)

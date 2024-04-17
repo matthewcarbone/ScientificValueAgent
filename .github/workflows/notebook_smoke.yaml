@@ -3,6 +3,7 @@ name: notebooks
 
 env:
   CI_SMOKE: True
+  DISABLE_LATEX: True
 
 on:
   workflow_call:

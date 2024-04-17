@@ -2,7 +2,7 @@ import numpy as np
 from attrs import define, field, validators
 from monty.json import MSONable
 
-from sva.experiments.base import (
+from ..base import (
     NOISE_TYPES,
     ExperimentData,
     ExperimentHistory,

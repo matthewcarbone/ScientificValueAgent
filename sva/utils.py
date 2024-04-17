@@ -2,6 +2,7 @@ import json
 import random
 from importlib import import_module
 from itertools import product
+from os import environ
 from time import perf_counter
 
 import matplotlib as mpl
@@ -206,7 +207,10 @@ def get_function_from_signature(signature):
 def set_mpl_defaults(labelsize=12, dpi=250):
     mpl.rcParams["mathtext.fontset"] = "stix"
     mpl.rcParams["font.family"] = "STIXGeneral"
-    mpl.rcParams["text.usetex"] = True
+    if environ.get("DISABLE_LATEX"):
+        mpl.rcParams["text.usetex"] = False
+    else:
+        mpl.rcParams["text.usetex"] = True
     plt.rc("xtick", labelsize=labelsize)
     plt.rc("ytick", labelsize=labelsize)
     plt.rc("axes", labelsize=labelsize)

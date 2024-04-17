@@ -5,15 +5,15 @@ from attrs import define, field, validators
 from monty.json import MSONable
 from PyAstronomy.pyasl import broadGaussFast
 
-from sva.experiments.base import (
+from ..base import (
     NOISE_TYPES,
-    CampaignBaseMixin,
     ExperimentData,
     ExperimentHistory,
     ExperimentMixin,
     ExperimentProperties,
-    MultimodalExperimentMixin,
 )
+from ..campaign import CampaignBaseMixin
+from ..multimodal import MultimodalExperimentMixin
 
 E_GRID = np.linspace(-1, 1, 100)
 

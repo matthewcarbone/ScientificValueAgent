@@ -40,6 +40,7 @@ class PolicyPerformanceEvaluator(MSONable):
     def _run_job(job):
         """Helper method for multiprocessing in the main function."""
 
+        # Check to see if the job exists already
         ckpt_name = job["checkpoint_name"]
         if ckpt_name is not None:
             if Path(ckpt_name).exists():
@@ -48,19 +49,13 @@ class PolicyPerformanceEvaluator(MSONable):
         seed = job["job_seed"]
         if seed is not None:
             seed_everything(seed)
+
         experiment = job["experiment"]
+        parameters = job["parameters"]
         n = job["n_steps"]
-        acqf = job["acquisition_function"]
-        acqf_kwargs = job["acquisition_function_kwargs"]
-        optimize_acqf_kwargs = job["optimize_acqf_kwargs"]
-        experiment.run(
-            n,
-            acqf,
-            acqf_kwargs,
-            optimize_acqf_kwargs=optimize_acqf_kwargs,
-            optimize_gp_kwargs=None,
-            pbar=False,
-        )
+
+        experiment.run(n, parameters, pbar=False)
+
         job["experiment"] = experiment
         if ckpt_name is not None:
             protocol = pickle.HIGHEST_PROTOCOL
@@ -70,12 +65,13 @@ class PolicyPerformanceEvaluator(MSONable):
         return job
 
     def _get_name_from_job(self, job):
-        acqf_str = str(job["acquisition_function"])
-        acqf_kwargs_str = str(job["acquisition_function_kwargs"])
+        parameters = job["parameters"]
+        acqf_str = str(parameters.acquisition_function["method"])
+        acqf_kwargs_str = str(parameters.acquisition_function["kwargs"])
         job_seed_str = str(job["job_seed"])
         return f"{acqf_str}-{acqf_kwargs_str}-{job_seed_str}.pkl"
 
-    def process_results(self, results=None):
+    def process_results(self, jobs=None):
         """Processes the saved history (or provided results) into a
         statistical analysis. Results are grouped by the combination of
         acquisition function signature and its keyword arguments (all json-
@@ -93,21 +89,22 @@ class PolicyPerformanceEvaluator(MSONable):
         dict
         """
 
-        if results is None:
-            results = self.history
+        if jobs is None:
+            jobs = self.history
 
         tmp0 = defaultdict(list)
-        for result in results:
+        for job in jobs:
             # Get some string representation of the combination of the
             # acquisition function and its keyword arguments for grouping
             # the results together
+            parameters = job["parameters"]
             key = json.dumps(
                 [
-                    result["acquisition_function"],
-                    result["acquisition_function_kwargs"],
+                    parameters.acquisition_function["method"],
+                    parameters.acquisition_function["kwargs"],
                 ]
             )
-            tmp0[key].append(result)
+            tmp0[key].append(job)
 
         to_return = {}
         for key, policy_results in tmp0.items():
@@ -152,8 +149,7 @@ class PolicyPerformanceEvaluator(MSONable):
         self,
         n_steps,
         n_dreams,
-        acquisition_functions,
-        optimize_acqf_kwargs=None,
+        parameter_list,
         n_jobs=12,
         seed=123,
     ):
@@ -168,9 +164,9 @@ class PolicyPerformanceEvaluator(MSONable):
         n_dreams : int
             the number of samples from the gp fit on the original data to run
             the simulations over.
-        acquisition_functions : list
-            A list of acquisition functions or signatures to test during the
-            campaign. Each entry must contain keys "acqf" and "acqf_kwargs".
+        parameter_list : list
+            A list of CampaignParameter objects used for the policy performance
+            evaluation.
         n_jobs : int
             number of parallel multiprocessing jobs to use at a time.
         seed : int, optional
@@ -184,11 +180,7 @@ class PolicyPerformanceEvaluator(MSONable):
         existing_names = [job["checkpoint_name"] for job in self.history]
         experiment = deepcopy(self.experiment)
 
-        for _, acqf_value in enumerate(acquisition_functions):
-            acqf = acqf_value["acqf"]
-            acqf_kwargs = acqf_value["acqf_kwargs"]
-            if acqf_kwargs is not None and len(acqf_kwargs) == 0:
-                acqf_kwargs = None
+        for parameters in parameter_list:
             for dream_index in range(n_dreams):
                 # Get the current seed and seed the current dreamed experiment
                 # if the seed is provided
@@ -204,14 +196,16 @@ class PolicyPerformanceEvaluator(MSONable):
                     experiment.properties.experimental_domain,
                 )
 
+                # This is required for policy performance evaluation
+                if parameters.optimize_gp is None:
+                    parameters.set_optimize_gp_default()
+
                 # Setup the job payload
                 job = {
                     "job_seed": job_seed,
                     "dream_index": dream_index,
                     "experiment": dream_experiment,
-                    "acquisition_function": acqf,
-                    "acquisition_function_kwargs": acqf_kwargs,
-                    "optimize_acqf_kwargs": optimize_acqf_kwargs,
+                    "parameters": parameters,
                     "n_steps": n_steps,
                 }
                 ckpt_name = None

@@ -1,10 +1,9 @@
-name: test/deploy
+name: CI-deploy
 
 on:
-  pull_request:
-    branches: ["master", "dev/*", "v*"]
   push:
-    branches: ["master"]
+    tags:
+      - 'v*'
 
 jobs:
 
@@ -14,6 +13,8 @@ jobs:
   notebook:
     uses: ./.github/workflows/notebook_smoke.yaml
 
+  unit_tests:
+    uses: ./.github/workflows/unit_tests.yaml
 
   build_and_publish:
     # This workflow follows the best practices outlined here:
@@ -26,6 +27,7 @@ jobs:
     needs:
       - style_syntax
       - notebook
+      - unit_tests
 
     runs-on: ubuntu-latest
 

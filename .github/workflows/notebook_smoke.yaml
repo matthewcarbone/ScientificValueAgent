@@ -1,5 +1,4 @@
-
-name: notebooks
+name: notebook-smoke
 
 env:
   CI_SMOKE: True

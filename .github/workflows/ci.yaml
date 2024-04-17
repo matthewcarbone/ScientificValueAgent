@@ -1,0 +1,18 @@
+name: CI
+
+on:
+  pull_request:
+    branches: ["master", "dev/*", "v*"]
+  push:
+    branches: ["master"]
+
+jobs:
+
+  style_syntax:
+    uses: ./.github/workflows/style_syntax.yaml
+
+  notebook:
+    uses: ./.github/workflows/notebook_smoke.yaml
+
+  unit_tests:
+    uses: ./.github/workflows/unit_tests.yaml

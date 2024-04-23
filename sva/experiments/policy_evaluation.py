@@ -7,8 +7,8 @@ from pathlib import Path
 import numpy as np
 from attrs import define, field, validators
 from joblib import Parallel, delayed
-from monty.json import MSONable
 
+from sva.monty.json import MSONable
 from sva.utils import seed_everything
 
 from . import DynamicExperiment
@@ -106,7 +106,7 @@ class PolicyPerformanceEvaluator(MSONable):
             )
             tmp0[key].append(job)
 
-        to_return = {}
+        results_dict = {}
         for key, policy_results in tmp0.items():
             tmp2 = []
             for job in policy_results:
@@ -142,8 +142,18 @@ class PolicyPerformanceEvaluator(MSONable):
                     tmp.append(cost)
                 tmp2.append(tmp)
 
-            to_return[key] = np.array(tmp2)
-        return to_return
+            res = np.array(tmp2)
+            results_dict[key] = {"results": res}
+
+            # Get the learning rate of an exponential fit to the opportunity
+            # cost as a function of iteration
+            x = np.arange(res.shape[1])
+            y = np.median(res, axis=0)
+            p = np.polyfit(x, np.log10(y), deg=1)
+            learning_rate = p[0]
+            results_dict[key]["learning_rate"] = learning_rate
+
+        return results_dict
 
     def run(
         self,
@@ -159,10 +169,10 @@ class PolicyPerformanceEvaluator(MSONable):
         Parameters
         ----------
         n_steps : int
-            the number of steps to take in each simulated experiments (the
+            The number of steps to take in each simulated experiments (the
             number of experiments to run/new data points to sample).
         n_dreams : int
-            the number of samples from the gp fit on the original data to run
+            The number of samples from the gp fit on the original data to run
             the simulations over.
         parameter_list : list
             A list of CampaignParameter objects used for the policy performance

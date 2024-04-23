@@ -1,6 +1,7 @@
 import numpy as np
 from attrs import define, field, validators
-from monty.json import MSONable
+
+from sva.monty.json import MSONable
 
 from ..base import (
     NOISE_TYPES,

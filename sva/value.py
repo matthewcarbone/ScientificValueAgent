@@ -7,14 +7,14 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 from attrs import define, field
-from monty.json import MSONable
 from scipy.spatial import distance_matrix
+
+from sva.monty.json import MSONable
 
 
 class BaseValue(ABC):
     @abstractmethod
-    def __call__(self, X, Y):
-        ...
+    def __call__(self, X, Y): ...
 
 
 def svf(X, Y, sd=None, multiplier=1.0):

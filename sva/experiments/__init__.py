@@ -1,5 +1,6 @@
 from .campaign import CampaignParameters
 from .dynamic import DynamicExperiment
+from .gpax.gpax import GPaxTwoModalityTest
 from .gramacylee.gramacylee import NegatedGramacyLee2012
 from .policy_evaluation import PolicyPerformanceEvaluator
 from .simple2d.simple2d import Simple2d
@@ -15,4 +16,5 @@ __all__ = [
     "Sine2Phase",
     "Sine2Phase2Resolutions",
     "PolicyPerformanceEvaluator",
+    "GPaxTwoModalityTest",
 ]

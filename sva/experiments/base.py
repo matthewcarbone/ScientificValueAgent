@@ -3,8 +3,8 @@ from typing import Callable
 
 import numpy as np
 from attrs import define, field, frozen, validators
-from monty.json import MSONable
 
+from sva.monty.json import MSONable
 from sva.utils import get_coordinates, get_random_points
 
 
@@ -113,7 +113,7 @@ class ExperimentProperties(MSONable):
 NOISE_TYPES = (Callable, float, np.ndarray, list, type(None))
 
 
-class ExperimentMixin(ABC):
+class ExperimentMixin(ABC, MSONable):
     """Abstract base class for a source of truth. These sources of truth are
     for a single modality."""
 
@@ -304,3 +304,93 @@ class ExperimentMixin(ABC):
             raise ValueError("Incompatible noise type")
 
         return y + np.random.normal(scale=self.noise, size=y.shape), yvar
+
+
+class MultimodalExperimentMixin(ExperimentMixin):
+    @abstractproperty
+    def n_modalities(self):
+        raise NotImplementedError
+
+    def _validate_input(self, x):
+        # Ensure x has the right shape
+        if not x.ndim == 2:
+            raise ValueError(
+                "x must have shape (N, d + 1), where d is the dimension of "
+                "the feature, and the added extra dimension is the task index"
+            )
+
+        # Ensure that the second dimension of x is the right size for the
+        # chosen experiment
+        if not x.shape[1] == self.properties.n_input_dim + 1:
+            raise ValueError(
+                f"x second dimension must be {self.properties.n_input_dim+1}"
+            )
+
+        # Ensure that the input is in the bounds
+        # Domain being None implies the domain is the entirety of the reals
+        # This is a fast way to avoid the check
+        if self.properties.valid_domain is not None:
+            check1 = self.properties.valid_domain[0, :] <= x[:, :-1]
+            check2 = x[:, :-1] <= self.properties.valid_domain[1, :]
+            if not np.all(check1 & check2):
+                raise ValueError("Some inputs x were not in the domain")
+
+    def get_random_coordinates(self, n, modality=0):
+        x = super().get_random_coordinates(n)
+        n = x.shape[0]
+        modality_array = np.zeros((n, 1)) + modality
+        return np.concatenate([x, modality_array], axis=1)
+
+    def get_dense_coordinates(self, ppd, modality=0):
+        """Gets a set of dense coordinates, augmented with the modality
+        index, which defaults to 0.
+
+        Parameters
+        ----------
+        ppd : int or list
+            Points per dimension.
+        modality : int
+            Indexes the modality to use in multi-modal experiments.
+        domain : np.ndarray, torch.tensor, optional
+            The experimental domain of interest. If not provided defaults to
+            that of the self experiment.
+
+        Returns
+        -------
+        np.ndarray
+        """
+
+        x = super().get_dense_coordinates(ppd)
+        n = x.shape[0]
+        modality_array = np.zeros((n, 1)) + modality
+        return np.concatenate([x, modality_array], axis=1)
+
+    def initialize_data(self, modality=0, protocol="random", **kwargs):
+        """Initializes the X data via some provided protocol. Takes care to
+        initialize the multi-modal data with the provided modality.
+
+        Parameters
+        ----------
+        modality : int
+            The modality to use during initialization. Defaults to 0, which
+            can be assumed to be the low-fidelity experiment inforomation.
+        protocol : str, optional
+            Can be one of either "random" or "dense".
+        kwargs
+            Keyword arguments to pass to the particular "getter". For example
+            if protocol == "random", one needs to pass `n=...` (the number
+            of points to sample). If protocol == "dense", one needs to pass
+            `ppd=...` (the number of points per dimension on a dense grid).
+
+        Note
+        ----
+        You can call initialize_data multiple times using different modalities.
+        """
+
+        if protocol == "random":
+            X = self.get_random_coordinates(**kwargs, modality=modality)
+        elif protocol == "dense":
+            X = self.get_dense_coordinates(**kwargs, modality=modality)
+        else:
+            raise NotImplementedError(f"Unknown provided protocol {protocol}")
+        self.update_data(X)

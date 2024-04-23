@@ -18,6 +18,7 @@ from botorch.models.transforms.outcome import Standardize
 from sva import __version__
 from sva.models import DEVICE
 from sva.models.gp.bo import ask
+from sva.monty.json import MSONable
 from sva.utils import Timer, get_coordinates, read_json, save_json
 
 
@@ -166,7 +167,6 @@ def get_train_protocol(train_protocol):
     tuple
         The training method (str) and keyword arguments (dict)
     """
-
     if isinstance(train_protocol, str):
         train_method = train_protocol
         train_kwargs = {}
@@ -324,7 +324,7 @@ def load_model(path):
 
 
 @define
-class GPMixin:
+class GPMixin(MSONable):
     X = field()
     Y = field()
     Yvar = field()

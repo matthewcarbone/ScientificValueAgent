@@ -23,6 +23,17 @@ SOFTWARE.
 """
 
 import numpy as np
+from attrs import define, field
+
+from sva.monty.json import MSONable
+
+from ..base import (
+    ExperimentData,
+    ExperimentHistory,
+    ExperimentProperties,
+    MultimodalExperimentMixin,
+)
+from ..campaign import MultimodalCampaignMixin
 
 
 def _f(x):
@@ -42,17 +53,23 @@ def high_fidelity_sinusoidal(x, noise=0.0):
     )
 
 
-def get_gpax_sinusoidal_dataset():
+def get_gpax_sinusoidal_dataset(
+    n_low=101, n_high=5, init_right=True, low_max=100.0
+):
     np.random.seed(1)  # for reproducibility
 
     # Fidelity 1 - "theoretical model"
-    X1 = np.linspace(0, 100, 100)
+    assert 1.0 < low_max <= 100.0
+    X1 = np.linspace(0, low_max, n_low)
     y1 = low_fidelity_sinusoidal(X1)
 
     # Fidelity 2 - "experimental measurements"
-    X2 = np.concatenate(
-        [np.linspace(0, 25, 20), np.linspace(75, 100, 20)]
-    )  # only have data for some frequencies
+    if init_right:
+        X2 = np.concatenate(
+            [np.linspace(0, 25, n_high), np.linspace(75, 100, n_high)]
+        )  # only have data for some frequencies
+    else:
+        X2 = np.linspace(0, 25, n_high)
     y2 = high_fidelity_sinusoidal(X2, noise=0.3)
 
     # Ground truth for Fidelity 2
@@ -73,3 +90,48 @@ def get_gpax_sinusoidal_dataset():
     y = np.concatenate([y1, y2]).squeeze()
 
     return X, y, X_full_range, y2_true
+
+
+@define
+class GPaxTwoModalityTest(
+    MultimodalExperimentMixin, MultimodalCampaignMixin, MSONable
+):
+    properties = field(
+        factory=lambda: ExperimentProperties(
+            n_input_dim=1,
+            n_output_dim=1,
+            valid_domain=None,
+            experimental_domain=np.array([[0.0, 100.0]]).T,
+        )
+    )
+    noise = None
+    history = field(factory=lambda: ExperimentHistory())
+    data = field(factory=lambda: ExperimentData())
+    n_modalities = 2
+
+    def initialize_data_from_default(self, *args, **kwargs):
+        X, _, _, _ = get_gpax_sinusoidal_dataset(*args, **kwargs)
+        self.update_data(X)
+
+    def _truth(self, x):
+        if self.noise is not None:
+            raise ValueError(
+                "Noise is not None, but is not allowed in this experiment"
+            )
+
+        low_y = None
+        low_ii = np.where(x[:, -1] == 0)[0]
+        if len(low_ii) > 0:
+            low_y = low_fidelity_sinusoidal(x[low_ii, :-1])
+
+        high_y = None
+        high_ii = np.where(x[:, -1] == 1)[0]
+        if len(high_ii) > 0:
+            high_y = high_fidelity_sinusoidal(x[high_ii, :-1])
+
+        to_return = np.empty((x.shape[0], self.properties.n_output_dim))
+        if low_y is not None:
+            to_return[low_ii, :] = low_y
+        if high_y is not None:
+            to_return[high_ii, :] = high_y
+        return to_return

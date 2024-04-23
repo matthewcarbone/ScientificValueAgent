@@ -1,6 +1,5 @@
 import numpy as np
 from attrs import define, field, validators
-from monty.json import MSONable
 
 from sva.experiments.base import (
     NOISE_TYPES,
@@ -17,7 +16,7 @@ from .gpax import (
 
 
 @define
-class SimpleSigmoid(ExperimentMixin, MSONable):
+class SimpleSigmoid(ExperimentMixin):
     """A simple 1d experimental response to a 1d input. This is a sigmoid
     function centered at 0, with a range (-0.5, 0.5). The sharpness of the
     sigmoid function is adjustable by setting the parameter a."""
@@ -71,23 +70,19 @@ class WavySinusoidalGPax:
 
 
 @define
-class WavySinusoidalGPaxLowFidelity(
-    WavySinusoidalGPax, ExperimentMixin, MSONable
-):
+class WavySinusoidalGPaxLowFidelity(WavySinusoidalGPax, ExperimentMixin):
     def _truth(self, x):
         return low_fidelity_sinusoidal(x, noise=0.0)
 
 
 @define
-class WavySinusoidalGPaxHighFidelity(
-    WavySinusoidalGPax, ExperimentMixin, MSONable
-):
+class WavySinusoidalGPaxHighFidelity(WavySinusoidalGPax, ExperimentMixin):
     def _truth(self, x):
         return high_fidelity_sinusoidal(x, noise=0.0)
 
 
 @define
-class NegatedGramacyLeeFunction(ExperimentMixin, MSONable):
+class NegatedGramacyLeeFunction(ExperimentMixin):
     """Maximum is approximately 0.548563."""
 
     properties = field(
@@ -142,7 +137,7 @@ class NegatedGramacyLeeFunction(ExperimentMixin, MSONable):
 
 
 @define
-class Simple2d(ExperimentMixin, MSONable):
+class Simple2d(ExperimentMixin):
     properties = field(
         factory=lambda: ExperimentProperties(
             n_input_dim=2,

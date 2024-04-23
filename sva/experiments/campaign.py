@@ -2,13 +2,15 @@ from copy import deepcopy
 from warnings import warn
 
 import numpy as np
+import torch
 from attrs import define, field
 from attrs.validators import instance_of
-from monty.json import MSONable
+from botorch.acquisition.objective import ScalarizedPosteriorTransform
 from tqdm import tqdm
 
-from sva.models.gp import EasySingleTaskGP, get_train_protocol
+from sva.models.gp import EasyMultiTaskGP, EasySingleTaskGP, get_train_protocol
 from sva.models.gp.bo import ask, is_EI
+from sva.monty.json import MSONable
 
 
 @define
@@ -90,9 +92,15 @@ class CampaignParameters(MSONable):
     )
     optimize_gp = field(default=None, validator=instance_of((dict, type(None))))
     model_factory = field(default=None)
-    modality_callback = field(
-        default=None, validator=instance_of((int, type(None)))
-    )
+    modality_callback = field(default=None)
+
+    @modality_callback.validator
+    def valid_modality_callback(self, _, value):
+        if value is None:
+            return
+        if not callable(value):
+            raise ValueError("modality_callback must be None or callable")
+
     task_feature = field(default=-1, validator=instance_of((int, type(None))))
 
     def _set_acquisition_function(self):
@@ -147,6 +155,21 @@ class CampaignParameters(MSONable):
             "raw_samples": 150,
         }
 
+    def validate_multimodal_experiment(self):
+        if self.modality_callback is None:
+            warn(
+                "modality_callback is unset. Using modality 0 only by default."
+                "Note that this is probably NOT what you want to do! Ensure "
+                "modality_callback is set in the parameters."
+            )
+            self.modality_callback = lambda _: 0
+        if self.model_factory == EasySingleTaskGP.from_default:
+            warn(
+                "Model factory was set to default EasySingleTaskGP. Changing "
+                "to use EasyMultiTaskGP"
+            )
+            self.model_factory = EasyMultiTaskGP.from_default
+
 
 class CampaignBaseMixin:
     """This class acts as a mixin for experiments in which there is a single
@@ -166,14 +189,51 @@ class CampaignBaseMixin:
         loops = np.ceil(remaining / q)
         return int(loops)
 
-    def _ask(
-        self,
-        gp,
-        Y,
-        acquisition_function,
-        acquisition_function_kwargs,
-        optimize_acqf_kwargs,
-    ):
+    def _initialize_pre_loop(self, parameters, n):
+        if parameters is None:
+            parameters = CampaignParameters()
+
+        q = parameters.optimize_acqf_kwargs["q"]
+        loops = self._calculate_remaining_loops(n, q)
+        return parameters, loops
+
+    def _get_data(self):
+        X = self.data.X
+        Y = self.data.Y
+        Yvar = self.data.Yvar
+        return X, Y, Yvar
+
+    def _svf_transform(self, svf, X, Y, Yvar):
+        # TODO: enable the SVA to use Yvar when present
+        if svf:
+            return svf(X, Y).reshape(-1, 1)
+        return Y
+
+    def _get_gp(self, parameters, X, Y, Yvar):
+        # The factory instantiates a model. It must have the from_default
+        # method defined on it. It must also be compatible with the
+        # from_default method (so for example, if your model has noisy
+        # observations, you must use a noise-compatible GP, such as
+        # a fixed-noise GP).
+        args = [X, Y]
+        if Yvar is None:
+            args.append(Yvar)
+        return parameters.model_factory(*args)
+
+    def _fit(self, parameters, gp):
+        # Fit the model
+        train_method = parameters.train_protocol["method"]
+        train_kwargs = parameters.train_protocol["kwargs"]
+        getattr(gp, train_method)(**train_kwargs)
+
+    def _ask(self, parameters, gp, Y):
+        # Ask the model what to do next, we're also careful to check for
+        # the best_f required keyword argument in the case of an EI
+        # acquisition function
+        # Update the internal data store with the next points
+        acquisition_function = parameters.acquisition_function["method"]
+        acquisition_function_kwargs = parameters.acquisition_function["kwargs"]
+        optimize_acqf_kwargs = parameters.optimize_acqf_kwargs
         kwargs = deepcopy(acquisition_function_kwargs)
         if is_EI(acquisition_function):
             if kwargs is None:
@@ -187,12 +247,24 @@ class CampaignBaseMixin:
             optimize_acqf_kwargs=optimize_acqf_kwargs,
         )
 
+    def _optimize_gp(self, parameters, gp, d):
+        # Optionally, we can run an additional optimization step on the GP
+        # to get the maximum value of that GP in the experimental space.
+        # This is useful for simulated campaigning and is disabled by
+        # default.
+        if parameters.optimize_gp is not None:
+            r = gp.optimize(experiment=self, **parameters.optimize_gp)
+            r.pop("acquisition_function")
+            d["optimize_gp"] = r
+        return d
+
     def run(
         self,
         n,
         parameters=None,
         svf=None,
         pbar=True,
+        additional_experiments=True,
     ):
         """Executes the campaign by running many sequential experiments.
 
@@ -209,52 +281,18 @@ class CampaignBaseMixin:
             Whether or not to display the tqdm progress bar.
         """
 
-        if parameters is None:
-            parameters = CampaignParameters()
-
-        q = parameters.optimize_acqf_kwargs["q"]
-        loops = self._calculate_remaining_loops(n, q)
+        if not additional_experiments:
+            parameters, loops = self._initialize_pre_loop(parameters, n)
+        else:
+            loops = n
 
         # The for loop runs over the maximum possible number of experiments
         for ii in tqdm(range(loops), disable=not pbar):
-            # Get the data
-            X = self.data.X
-            Y = self.data.Y
-            Yvar = self.data.Yvar
-
-            # Simple fitting of a Gaussian process
-            # using some pretty simple default values for things, which we
-            # can always change later
-            # TODO: enable the SVA to use Yvar when present
-            if svf:
-                Y = svf(X, Y).reshape(-1, 1)
-
-            # The factory instantiates a model. It must have the from_default
-            # method defined on it. It must also be compatible with the
-            # from_default method (so for example, if your model has noisy
-            # observations, you must use a noise-compatible GP, such as
-            # a fixed-noise GP).
-            args = [X, Y]
-            if Yvar is None:
-                args.append(Yvar)
-            gp = parameters.model_factory(*args)
-
-            # Fit the model
-            train_method = parameters.train_protocol["method"]
-            train_kwargs = parameters.train_protocol["kwargs"]
-            getattr(gp, train_method)(**train_kwargs)
-
-            # Ask the model what to do next, we're also careful to check for
-            # the best_f required keyword argument in the case of an EI
-            # acquisition function
-            # Update the internal data store with the next points
-            state = self._ask(
-                gp,
-                Y,
-                parameters.acquisition_function["method"],
-                parameters.acquisition_function["kwargs"],
-                parameters.optimize_acqf_kwargs,
-            )
+            X, Y, Yvar = self._get_data()
+            Y = self._svf_transform(svf, X, Y, Yvar)
+            gp = self._get_gp(parameters, X, Y, Yvar)
+            self._fit(parameters, gp)
+            state = self._ask(parameters, gp, Y)
 
             # Append the history with everything we want to keep
             # Note that the complete state of the GP is saved in the
@@ -266,14 +304,113 @@ class CampaignBaseMixin:
                 "easy_gp": deepcopy(gp),
             }
 
-            # Optionally, we can run an additional optimization step on the GP
-            # to get the maximum value of that GP in the experimental space.
-            # This is useful for simulated campaigning and is disabled by
-            # default.
-            if parameters.optimize_gp is not None:
-                r = gp.optimize(experiment=self, **parameters.optimize_gp)
-                r.pop("acquisition_function")
-                d["optimize_gp"] = r
+            d = self._optimize_gp(parameters, gp, d)
+
+            self.history.append(d)
+
+            self.update_data(state["next_points"])
+
+
+class MultimodalCampaignMixin(CampaignBaseMixin):
+    def _svf_transform(self, svf, X, Y, Yvar, task_feature):
+        if svf:
+            new_target = np.empty(shape=(Y.shape[0], 1))
+            # Assign each of the values based on the individual modal
+            # experiments. The GP should take care of the rest
+            for modality_index in range(self.n_modalities):
+                where = np.where(X[:, task_feature] == modality_index)[0]
+                if len(where) > 0:
+                    target = svf(X[where, :], Y[where, :])
+                    new_target[where, :] = target.reshape(-1, 1)
+            target = new_target
+        else:
+            target = Y
+        return target
+
+    def _ask(self, parameters, gp, Y, ii):
+        acquisition_function = parameters.acquisition_function["method"]
+        acquisition_function_kwargs = parameters.acquisition_function["kwargs"]
+        optimize_acqf_kwargs = parameters.optimize_acqf_kwargs
+        acquisition_function_kwargs = deepcopy(acquisition_function_kwargs)
+
+        # get the current modality of the experiment we're currently
+        # running
+        modality_index = parameters.modality_callback(ii)
+
+        # Need to use a posterior transform here to tell the acquisition
+        # function how to weight the multiple outputs
+        weights = np.zeros(shape=(self.n_modalities,))
+        weights[modality_index] = 1.0
+        weights = torch.tensor(weights)
+        transform = ScalarizedPosteriorTransform(weights=weights)
+        acquisition_function_kwargs["posterior_transform"] = transform
+
+        # Ask the model what to do next
+        if is_EI(acquisition_function):
+            acquisition_function_kwargs["best_f"] = Y[:, modality_index].max()
+
+        return ask(
+            gp.model,
+            acquisition_function,
+            bounds=self.properties.experimental_domain,
+            acquisition_function_kwargs=acquisition_function_kwargs,
+            optimize_acqf_kwargs=optimize_acqf_kwargs,
+        )
+
+    def run(
+        self,
+        n,
+        parameters=None,
+        svf=None,
+        pbar=True,
+        additional_experiments=True,
+    ):
+        """A special experiment executor which works on multimodal data. The
+        user must specify a special callback function which provides the
+        modality index as a function of iteration. By default, this is just
+        0 for any iteration index (returns the low-fidelity experiment index).
+        """
+
+        if not additional_experiments:
+            parameters, loops = self._initialize_pre_loop(parameters, n)
+        else:
+            loops = n
+        parameters.validate_multimodal_experiment()
+        task_feature = parameters.task_feature
+
+        # The for loop runs over the maximum possible number of experiments
+        for ii in tqdm(range(loops), disable=not pbar):
+            X, Y, Yvar = self._get_data()
+            Y = self._svf_transform(svf, X, Y, Yvar, task_feature)
+
+            if Y.ndim == 1:
+                Y = Y.reshape(-1, 1)
+            if Yvar is not None and Yvar.ndim == 1:
+                Yvar = Yvar.reshape(-1, 1)
+
+            gp = self._get_gp(parameters, X, Y, Yvar)
+            self._fit(parameters, gp)
+
+            state = self._ask(parameters, gp, Y, ii)
+
+            # Append the current modality to the next points
+            x = state["next_points"]
+            n_pts = x.shape[0]
+            modality = parameters.modality_callback(ii)
+            modality_array = np.zeros((n_pts, 1)) + modality
+            state["next_points"] = np.concatenate([x, modality_array], axis=1)
+
+            # Append the history with everything we want to keep
+            # Note that the complete state of the GP is saved in the
+            # acquisition function model
+            d = {
+                "iteration": ii,
+                "N": X.shape[0],
+                "state": state,
+                "easy_gp": deepcopy(gp),
+            }
+
+            d = self._optimize_gp(parameters, gp, d)
 
             self.history.append(d)
 

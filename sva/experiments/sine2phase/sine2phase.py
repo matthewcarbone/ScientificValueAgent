@@ -2,8 +2,9 @@ import warnings
 
 import numpy as np
 from attrs import define, field, validators
-from monty.json import MSONable
 from PyAstronomy.pyasl import broadGaussFast
+
+from sva.monty.json import MSONable
 
 from ..base import (
     NOISE_TYPES,
@@ -11,9 +12,9 @@ from ..base import (
     ExperimentHistory,
     ExperimentMixin,
     ExperimentProperties,
+    MultimodalExperimentMixin,
 )
-from ..campaign import CampaignBaseMixin
-from ..multimodal import MultimodalExperimentMixin
+from ..campaign import CampaignBaseMixin, MultimodalCampaignMixin
 
 E_GRID = np.linspace(-1, 1, 100)
 
@@ -97,7 +98,9 @@ class Sine2Phase(ExperimentMixin, CampaignBaseMixin, MSONable):
 
 
 @define
-class Sine2Phase2Resolutions(MultimodalExperimentMixin, MSONable):
+class Sine2Phase2Resolutions(
+    MultimodalExperimentMixin, MultimodalCampaignMixin, MSONable
+):
     """A modification of the Sine2Phase experiment which produces a multimodal
     output. The low-resolution output is a broadened Gaussian with artificial
     Gaussian noise injected. The noise paramter controls how strong this noise

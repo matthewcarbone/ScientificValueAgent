@@ -1,15 +1,12 @@
 import warnings
 
 import numpy as np
-from attrs import define, field, validators
+from attrs import define, field
 from PyAstronomy.pyasl import broadGaussFast
 
 from sva.monty.json import MSONable
 
 from ..base import (
-    NOISE_TYPES,
-    ExperimentData,
-    ExperimentHistory,
     ExperimentMixin,
     ExperimentProperties,
     MultimodalExperimentMixin,
@@ -83,9 +80,6 @@ class Sine2Phase(ExperimentMixin, CampaignBaseMixin, MSONable):
             experimental_domain=np.array([[0.0, 1.0], [0.0, 1.0]]).T,
         )
     )
-    noise = field(default=None, validator=validators.instance_of(NOISE_TYPES))
-    data = field(factory=lambda: ExperimentData())
-    history = field(factory=lambda: ExperimentHistory())
     x0 = field(default=0.5)
     a = field(default=100.0)
     gaussian_x0 = field(default=0.5)
@@ -115,9 +109,7 @@ class Sine2Phase2Resolutions(
         )
     )
     noise = None
-    history = field(factory=lambda: ExperimentHistory())
     low_resolution_noise = field(default=0.05)
-    data = field(factory=lambda: ExperimentData())
     x0 = field(default=0.5)
     a = field(default=100.0)
     gaussian_x0 = field(default=0.5)

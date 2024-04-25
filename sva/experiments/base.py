@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod, abstractproperty
+from collections import defaultdict
 from typing import Callable
 
 import numpy as np
+import torch
 from attrs import define, field, frozen, validators
 
 from sva.monty.json import MSONable
@@ -72,6 +74,33 @@ class ExperimentData(MSONable):
             else:
                 self.Yvar = new_Yvar
 
+    def __eq__(self, exp):
+        # XOR for when things aren't initialized
+        if (exp.X is None) ^ (self.X is None):
+            return False
+        if (exp.Y is None) ^ (self.Y is None):
+            return False
+        if (exp.Yvar is None) ^ (self.Yvar is None):
+            return False
+
+        if exp.X is not None and self.X is not None:
+            if exp.X.shape != self.X.shape:
+                return False
+            if not np.all(exp.X == self.X):
+                return False
+        if exp.Y is not None and self.Y is not None:
+            if exp.Y.shape != self.Y.shape:
+                return False
+            if not np.all(exp.Y == self.Y):
+                return False
+        if exp.Yvar is not None and self.Yvar is not None:
+            if exp.Yvar.shape != self.Yvar.shape:
+                return False
+            if not np.all(exp.Yvar == self.Yvar):
+                return False
+
+        return True
+
 
 @define
 class ExperimentHistory(MSONable):
@@ -95,6 +124,29 @@ class ExperimentHistory(MSONable):
     def __getitem__(self, ii):
         return self.history[ii]
 
+    def __eq__(self, x):
+        if len(self.history) != len(x.history):
+            return False
+        for x1, x2 in zip(self.history, x.history):
+            if len(x1) != len(x2):
+                return False
+            if x1.keys() != x2.keys():
+                return False
+            for key in x1.keys():
+                # Not really sure how to do this comparison yet
+                if key == "state":
+                    continue
+                v1 = x1[key]
+                v2 = x2[key]
+                if key == "easy_gp":
+                    if v1 != v2:
+                        return False
+                if isinstance(v1, (np.ndarray, torch.Tensor)) and np.all(
+                    v1 != v2
+                ):
+                    return False
+        return True
+
 
 @frozen
 class ExperimentProperties(MSONable):
@@ -109,28 +161,43 @@ class ExperimentProperties(MSONable):
     )
     experimental_domain = field(validator=validators.instance_of(np.ndarray))
 
+    def __eq__(self, x):
+        if self.n_input_dim != x.n_input_dim:
+            return False
+        if self.n_output_dim != x.n_output_dim:
+            return False
+        if (self.valid_domain is None) ^ (x.valid_domain is None):
+            return False
+        if self.valid_domain is not None and x.valid_domain is not None:
+            if self.valid_domain.shape != x.valid_domain:
+                return False
+            if not np.all(self.valid_domain == x.valid_domain):
+                return False
+        if self.experimental_domain.shape != x.experimental_domain.shape:
+            return False
+        if not np.all(self.experimental_domain == x.experimental_domain):
+            return False
+        return True
+
 
 NOISE_TYPES = (Callable, float, np.ndarray, list, type(None))
 
 
+@define
 class ExperimentMixin(ABC, MSONable):
     """Abstract base class for a source of truth. These sources of truth are
     for a single modality."""
 
-    @abstractproperty
-    def noise(self): ...
-
-    @abstractproperty
-    def history(self): ...
+    metadata = field(factory=lambda: defaultdict(list))
+    noise = field(default=None, validator=validators.instance_of(NOISE_TYPES))
+    data = field(factory=lambda: ExperimentData())
+    history = field(factory=lambda: ExperimentHistory())
 
     @abstractproperty
     def properties(self): ...
 
-    @abstractproperty
-    def data(self): ...
-
     @abstractmethod
-    def _truth(self, x: np.ndarray) -> np.ndarray:
+    def _truth(self, _):
         """Vectorized truth function. Should return the value of the truth
         function for all rows of the provided x input."""
 
@@ -307,7 +374,7 @@ class ExperimentMixin(ABC, MSONable):
 
 
 class MultimodalExperimentMixin(ExperimentMixin):
-    @abstractproperty
+    @abstractmethod
     def n_modalities(self):
         raise NotImplementedError
 

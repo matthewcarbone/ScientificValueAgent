@@ -1,15 +1,9 @@
 import numpy as np
-from attrs import define, field, validators
+from attrs import define, field
 
 from sva.monty.json import MSONable
 
-from ..base import (
-    NOISE_TYPES,
-    ExperimentData,
-    ExperimentHistory,
-    ExperimentMixin,
-    ExperimentProperties,
-)
+from ..base import ExperimentMixin, ExperimentProperties
 
 
 @define
@@ -25,9 +19,6 @@ class NegatedGramacyLee2012(ExperimentMixin, MSONable):
             experimental_domain=np.array([[0.5, 2.5]]).T,
         )
     )
-    noise = field(default=None, validator=validators.instance_of(NOISE_TYPES))
-    history = field(factory=lambda: ExperimentHistory())
-    data = field(factory=lambda: ExperimentData())
 
     def _truth(self, x):
         t1 = -np.sin(10.0 * np.pi * x) / 2.0 / x

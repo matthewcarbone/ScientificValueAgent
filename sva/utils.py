@@ -1,14 +1,12 @@
+import hashlib
 import json
-import pickle
 import random
 from importlib import import_module
 from itertools import product
 from os import environ
-from pathlib import Path
 from time import perf_counter
 from warnings import warn
 
-from sva.monty.json import MSONable
 
 try:
     import matplotlib as mpl
@@ -325,103 +323,8 @@ def read_json(path):
     return dat
 
 
-class MSONable2(MSONable):
-    def save(
-        self,
-        json_path,
-        mkdir=True,
-        json_kwargs=None,
-        pickle_kwargs=None,
-        strict=True,
-    ):
-        """Utility that uses the standard tools of MSONable to convert the
-        class to json format, but also save it to disk. In addition, this
-        method intelligently uses pickle to individually pickle class objects
-        that are not serializable, saving them separately. This maximizes the
-        readability of the saved class information while allowing _any_
-        class to be at least partially serializable to disk.
-
-        For a fully MSONable class, only a class.json file will be saved to
-        the location {save_dir}/class.json. For a partially MSONable class,
-        additional information will be saved to the save directory at
-        {save_dir}. This includes a pickled object for each attribute that
-        e serialized.
-
-        Parameters
-        ----------
-        file_path : os.PathLike
-            The file to which to save the json object. A pickled object of
-            the same name but different extension might also be saved if the
-            class is not entirely MSONable.
-        mkdir : bool
-            If True, makes the provided directory, including all parent
-            directories.
-        json_kwargs : dict
-            Keyword arguments to pass to the serializer.
-        pickle_kwargs : dict
-            Keyword arguments to pass to pickle.dump.
-        strict : bool
-            If True, will not allow you to overwrite existing files.
-        """
-
-        json_path = Path(json_path)
-        save_dir = json_path.parent
-
-        encoded, name_object_map = self.get_partial_json(
-            json_kwargs, pickle_kwargs
-        )
-
-        if mkdir:
-            save_dir.mkdir(exist_ok=True, parents=True)
-
-        # Define the pickle path
-        pickle_path = save_dir / f"{json_path.stem}.pkl"
-
-        # Check if the files exist and the strict parameter is True
-        if strict and json_path.exists():
-            raise FileExistsError(f"strict is true and file {json_path} exists")
-        if strict and pickle_path.exists():
-            raise FileExistsError(
-                f"strict is true and file {pickle_path} exists"
-            )
-
-        # Save the json file
-        with open(json_path, "w") as outfile:
-            outfile.write(encoded)
-
-        # Save the pickle file if we have anything to save from the name_object_map
-        if name_object_map is not None:
-            pickle.dump(
-                name_object_map,
-                open(pickle_path, "wb"),
-                **pickle_kwargs,
-            )
-
-    @classmethod
-    def load(cls, file_path):
-        """Loads a class from a provided {load_dir}/class.json and
-        {load_dir}/class.pkl file (if necessary).
-
-        Parameters
-        ----------
-        file_path : os.PathLike
-            The json file to load from.
-
-        Returns
-        -------
-        MSONable
-            An instance of the class being reloaded.
-        """
-
-        json_path = Path(file_path)
-        save_dir = json_path.parent
-        pickle_path = save_dir / f"{json_path.stem}.pkl"
-
-        with open(json_path, "r") as infile:
-            d = json.loads(infile.read())
-
-        if pickle_path.exists():
-            name_object_map = pickle.load(open(pickle_path, "rb"))
-            d = _recursive_name_object_map_replacement(d, name_object_map)
-
-        return cls.from_dict(d)
+def get_hash(s):
+    h = hashlib.new("sha256")
+    s = s.encode("utf8")
+    h.update(s)
+    return h.hexdigest()

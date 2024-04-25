@@ -3,13 +3,7 @@ from attrs import define, field, validators
 
 from sva.monty.json import MSONable
 
-from ..base import (
-    NOISE_TYPES,
-    ExperimentData,
-    ExperimentHistory,
-    ExperimentMixin,
-    ExperimentProperties,
-)
+from ..base import ExperimentMixin, ExperimentProperties
 
 
 @define
@@ -18,7 +12,6 @@ class SimpleSigmoid(ExperimentMixin, MSONable):
     function centered at 0, with a range (-0.5, 0.5). The sharpness of the
     sigmoid function is adjustable by setting the parameter a."""
 
-    history = field(factory=lambda: ExperimentHistory())
     properties = field(
         factory=lambda: ExperimentProperties(
             n_input_dim=1,
@@ -28,8 +21,6 @@ class SimpleSigmoid(ExperimentMixin, MSONable):
         )
     )
     a = field(default=10.0, validator=validators.instance_of(float))
-    noise = field(default=None, validator=validators.instance_of(NOISE_TYPES))
-    data = field(factory=lambda: ExperimentData())
 
     def _truth(self, x):
         return 2.0 / (1.0 + np.exp(-self.a * x)) - 1.0

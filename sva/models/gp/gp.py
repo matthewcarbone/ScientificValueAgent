@@ -1,9 +1,7 @@
 """Module containing helpers for single task GPs written in gpytorch and
 botorch."""
 
-import pickle
 from copy import deepcopy
-from pathlib import Path
 from warnings import catch_warnings, warn
 
 import gpytorch
@@ -15,11 +13,10 @@ from botorch.models import FixedNoiseGP, MultiTaskGP, SingleTaskGP
 from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
 
-from sva import __version__
 from sva.models import DEVICE
 from sva.models.gp.bo import ask
 from sva.monty.json import MSONable
-from sva.utils import Timer, get_coordinates, read_json, save_json
+from sva.utils import Timer, get_coordinates
 
 
 def set_eval_(gp):
@@ -464,42 +461,6 @@ class GPMixin(MSONable):
         # Very useful in campaigns
         return new_gp
 
-    def save(self, path):
-        """Serializes the EasyGP object to disk."""
-
-        path = Path(path)
-        path.mkdir(exist_ok=True, parents=True)
-
-        pickle.dump(
-            self,
-            open(path / "model.pkl", "wb"),
-            protocol=pickle.HIGHEST_PROTOCOL,
-        )
-
-        # Finally we save the version information used to generate the
-        # class
-        d = {
-            "__version__": __version__,
-            "__name__": self.__class__.__name__,
-            "__module__": self.__class__.__module__,
-        }
-        save_json(d, path / "metadata.json")
-
-    @classmethod
-    def load(cls, path):
-        path = Path(path)
-        assert path.exists()
-
-        d = read_json(path / "metadata.json")
-        version = d["__version__"]
-        if version != __version__:
-            warn(
-                f"Model version loaded ({version}) does not match"
-                f"current sva version {__version__}"
-            )
-
-        return pickle.load(open(path / "model.pkl", "rb"))
-
 
 @define(kw_only=True)
 class EasySingleTaskGP(GPMixin):
@@ -535,6 +496,12 @@ class EasySingleTaskGP(GPMixin):
         )
 
         return deepcopy(cls(X=X, Y=Y, Yvar=None, model=model))
+
+    def __eq__(self, x):
+        # simple equality comparison for GP's, we just look at the parameters
+        np1 = list(self.model.named_parameters())
+        np2 = list(x.model.named_parameters())
+        return np1 == np2
 
 
 @define(kw_only=True)

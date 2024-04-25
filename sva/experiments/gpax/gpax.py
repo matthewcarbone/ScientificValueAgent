@@ -27,12 +27,7 @@ from attrs import define, field
 
 from sva.monty.json import MSONable
 
-from ..base import (
-    ExperimentData,
-    ExperimentHistory,
-    ExperimentProperties,
-    MultimodalExperimentMixin,
-)
+from ..base import ExperimentProperties, MultimodalExperimentMixin
 from ..campaign import MultimodalCampaignMixin
 
 
@@ -105,8 +100,6 @@ class GPaxTwoModalityTest(
         )
     )
     noise = None
-    history = field(factory=lambda: ExperimentHistory())
-    data = field(factory=lambda: ExperimentData())
     n_modalities = 2
 
     def initialize_data_from_default(self, *args, **kwargs):

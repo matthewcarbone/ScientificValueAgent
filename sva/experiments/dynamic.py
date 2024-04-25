@@ -1,25 +1,15 @@
-from attrs import define, field, validators
+from attrs import define, field
 
 from sva.models.gp import EasySingleTaskGP, get_train_protocol
 
-from .base import (
-    NOISE_TYPES,
-    ExperimentData,
-    ExperimentHistory,
-    ExperimentMixin,
-    ExperimentProperties,
-)
+from .base import ExperimentData, ExperimentMixin, ExperimentProperties
 from .campaign import CampaignBaseMixin
 
 
 @define
 class DynamicExperiment(ExperimentMixin, CampaignBaseMixin):
-    gp = field()
-    properties = field()
-    data = field()
-    noise = field(default=None, validator=validators.instance_of(NOISE_TYPES))
-    history = field(factory=lambda: ExperimentHistory())
-    metadata = field(factory=dict)
+    gp = field(default=None)
+    properties = field(default=None)
 
     @classmethod
     def from_data(

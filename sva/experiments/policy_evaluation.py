@@ -1,5 +1,3 @@
-import json
-import pickle
 from collections import defaultdict
 from copy import deepcopy
 from pathlib import Path
@@ -8,7 +6,7 @@ import numpy as np
 from attrs import define, field, validators
 from joblib import Parallel, delayed
 
-from sva.monty.json import MSONable
+from sva.monty.json import MSONable, load_anything
 from sva.utils import seed_everything
 
 from . import DynamicExperiment
@@ -41,10 +39,10 @@ class PolicyPerformanceEvaluator(MSONable):
         """Helper method for multiprocessing in the main function."""
 
         # Check to see if the job exists already
-        ckpt_name = job["checkpoint_name"]
+        ckpt_name = job["checkpoint_path"]
         if ckpt_name is not None:
             if Path(ckpt_name).exists():
-                return pickle.load(open(ckpt_name, "rb"))
+                return load_anything(ckpt_name)
 
         seed = job["job_seed"]
         if seed is not None:
@@ -55,23 +53,19 @@ class PolicyPerformanceEvaluator(MSONable):
         n = job["n_steps"]
 
         experiment.run(n, parameters, pbar=False)
-
-        job["experiment"] = experiment
         if ckpt_name is not None:
-            protocol = pickle.HIGHEST_PROTOCOL
-            pickle.dump(job, open(ckpt_name, "wb"), protocol=protocol)
+            experiment.save(ckpt_name)
 
         # Required for multiprocessing
-        return job
+        return experiment
 
     def _get_name_from_job(self, job):
         parameters = job["parameters"]
-        acqf_str = str(parameters.acquisition_function["method"])
-        acqf_kwargs_str = str(parameters.acquisition_function["kwargs"])
         job_seed_str = str(job["job_seed"])
-        return f"{acqf_str}-{acqf_kwargs_str}-{job_seed_str}.pkl"
+        hash = parameters.get_hash()
+        return f"{hash}-seed-{job_seed_str}"
 
-    def process_results(self, jobs=None):
+    def process_results(self):
         """Processes the saved history (or provided results) into a
         statistical analysis. Results are grouped by the combination of
         acquisition function signature and its keyword arguments (all json-
@@ -89,30 +83,18 @@ class PolicyPerformanceEvaluator(MSONable):
         dict
         """
 
-        if jobs is None:
-            jobs = self.history
-
         tmp0 = defaultdict(list)
-        for job in jobs:
+        for exp in self.history:
             # Get some string representation of the combination of the
             # acquisition function and its keyword arguments for grouping
             # the results together
-            parameters = job["parameters"]
-            key = json.dumps(
-                [
-                    parameters.acquisition_function["method"],
-                    parameters.acquisition_function["kwargs"],
-                ]
-            )
-            tmp0[key].append(job)
+            parameters = exp.metadata["runtime_properties"][-1]
+            tmp0[str(parameters)].append(exp)
 
         results_dict = {}
         for key, policy_results in tmp0.items():
             tmp2 = []
-            for job in policy_results:
-                # For each job, get the ground truth "dreamed" experiment
-                exp = job["experiment"]
-
+            for exp in policy_results:
                 # Find the x coordinate corresponding to the maximum y-value
                 # in the experiment
                 x_star = exp.metadata["optima"]["next_points"].numpy()
@@ -187,7 +169,7 @@ class PolicyPerformanceEvaluator(MSONable):
         """
 
         jobs = []
-        existing_names = [job["checkpoint_name"] for job in self.history]
+        existing_names = [job["name"] for job in self.history]
         experiment = deepcopy(self.experiment)
 
         for parameters in parameter_list:
@@ -218,14 +200,17 @@ class PolicyPerformanceEvaluator(MSONable):
                     "parameters": parameters,
                     "n_steps": n_steps,
                 }
-                ckpt_name = None
+                name = self._get_name_from_job(job)
+                job["name"] = name
+                job["checkpoint_path"] = None
                 if self.checkpoint_dir is not None:
-                    ckpt_name = self._get_name_from_job(job)
-                    ckpt_name = self.checkpoint_dir / Path(ckpt_name)
-                job["checkpoint_name"] = ckpt_name
+                    ckpt_name = f"{name}.json"
+                    job["checkpoint_path"] = self.checkpoint_dir / Path(
+                        ckpt_name
+                    )
 
                 # We don't want to repeat already completed jobs
-                if job["checkpoint_name"] not in existing_names:
+                if job["name"] not in existing_names:
                     jobs.append(job)
 
         results = Parallel(n_jobs=n_jobs)(

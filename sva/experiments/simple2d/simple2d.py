@@ -1,21 +1,14 @@
 import numpy as np
-from attrs import define, field, validators
+from attrs import define, field
 
 from sva.monty.json import MSONable
 
-from ..base import (
-    NOISE_TYPES,
-    ExperimentData,
-    ExperimentHistory,
-    ExperimentMixin,
-    ExperimentProperties,
-)
+from ..base import ExperimentMixin, ExperimentProperties
 from ..campaign import CampaignBaseMixin
 
 
 @define
 class Simple2d(ExperimentMixin, CampaignBaseMixin, MSONable):
-    history = field(factory=lambda: ExperimentHistory())
     properties = field(
         factory=lambda: ExperimentProperties(
             n_input_dim=2,
@@ -24,8 +17,6 @@ class Simple2d(ExperimentMixin, CampaignBaseMixin, MSONable):
             experimental_domain=np.array([[-4.0, 5.0], [-5.0, 4.0]]).T,
         )
     )
-    noise = field(default=None, validator=validators.instance_of(NOISE_TYPES))
-    data = field(factory=lambda: ExperimentData())
 
     def _truth(self, X):
         x = X[:, 0]

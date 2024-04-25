@@ -11,6 +11,7 @@ from tqdm import tqdm
 from sva.models.gp import EasyMultiTaskGP, EasySingleTaskGP, get_train_protocol
 from sva.models.gp.bo import ask, is_EI
 from sva.monty.json import MSONable
+from sva.utils import get_hash
 
 
 @define
@@ -49,6 +50,8 @@ class CampaignParameters(MSONable):
     task_feature : int
         The index of the task feature in multimodal experiments. Defaults to
         -1.
+    svf : SVF
+        Scientific Value Function, can be optionally provided.
     """
 
     acquisition_function = field(
@@ -103,6 +106,8 @@ class CampaignParameters(MSONable):
 
     task_feature = field(default=-1, validator=instance_of((int, type(None))))
 
+    svf = field(default=None)
+
     def _set_acquisition_function(self):
         if self.acquisition_function is not None:
             return
@@ -112,9 +117,28 @@ class CampaignParameters(MSONable):
             f"{self.acquisition_function}"
         )
 
+    def __str__(self):
+        """Gets a simple string representation of the parameters. This actually
+        abstracts away all other attributes except the acquisition function,
+        which is of primary interest when running a campaign."""
+
+        if self.acquisition_function["method"] == "EI":
+            return "EI"
+        if self.acquisition_function["method"] == "UCB":
+            beta = self.acquisition_function["kwargs"]["beta"]
+            return f"UCB-{beta:.01f}"
+        raise ValueError("Unknown acquisition function method")
+
+    def __repr__(self):
+        return self.__str__()
+
     def _set_train_protocol(self):
         if self.train_protocol is None:
             self.train_protocol = {"method": "fit_mll", "kwargs": {}}
+            warn(
+                "train_protocol was unset. "
+                f"Using default: {self.train_protocol}"
+            )
         if isinstance(self.train_protocol, str):
             train_method, train_kwargs = get_train_protocol(self.train_protocol)
             self.train_protocol = {
@@ -122,7 +146,6 @@ class CampaignParameters(MSONable):
                 "kwargs": train_kwargs,
             }
             return
-        warn(f"train_protocol was unset. Using default: {self.train_protocol}")
 
     def _set_optimize_acqf_kwargs(self):
         if self.optimize_acqf_kwargs is not None:
@@ -169,6 +192,14 @@ class CampaignParameters(MSONable):
                 "to use EasyMultiTaskGP"
             )
             self.model_factory = EasyMultiTaskGP.from_default
+
+    def get_hash(self):
+        return get_hash(str(self.as_dict()))
+
+    def __eq__(self, x):
+        if not isinstance(x, CampaignParameters):
+            return False
+        return self.get_hash() == x.get_hash()
 
 
 class CampaignBaseMixin:
@@ -286,6 +317,8 @@ class CampaignBaseMixin:
         else:
             loops = n
 
+        self.metadata["runtime_properties"].append(parameters)
+
         # The for loop runs over the maximum possible number of experiments
         for ii in tqdm(range(loops), disable=not pbar):
             X, Y, Yvar = self._get_data()
@@ -377,6 +410,8 @@ class MultimodalCampaignMixin(CampaignBaseMixin):
             loops = n
         parameters.validate_multimodal_experiment()
         task_feature = parameters.task_feature
+
+        self.metadata["runtime_properties"].append(parameters)
 
         # The for loop runs over the maximum possible number of experiments
         for ii in tqdm(range(loops), disable=not pbar):

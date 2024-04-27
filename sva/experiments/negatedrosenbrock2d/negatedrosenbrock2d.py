@@ -8,7 +8,7 @@ from ..campaign import CampaignBaseMixin
 
 
 @define
-class negatedRosenbrock2d(ExperimentMixin, CampaignBaseMixin, MSONable):
+class NegatedRosenbrock2d(ExperimentMixin, CampaignBaseMixin, MSONable):
     properties = field(
         factory=lambda: ExperimentProperties(
             n_input_dim=2,

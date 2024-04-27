@@ -8,7 +8,7 @@ from ..campaign import CampaignBaseMixin
 
 
 @define
-class negatedAckley2d(ExperimentMixin, CampaignBaseMixin, MSONable):
+class NegatedAckley2d(ExperimentMixin, CampaignBaseMixin, MSONable):
     properties = field(
         factory=lambda: ExperimentProperties(
             n_input_dim=2,

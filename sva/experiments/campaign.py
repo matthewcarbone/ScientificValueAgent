@@ -311,7 +311,6 @@ class CampaignBaseMixin:
         self,
         n,
         parameters=None,
-        svf=None,
         pbar=True,
         additional_experiments=True,
     ):
@@ -340,7 +339,7 @@ class CampaignBaseMixin:
         # The for loop runs over the maximum possible number of experiments
         for ii in tqdm(range(loops), disable=not pbar):
             X, Y, Yvar = self._get_data()
-            Y = self._svf_transform(svf, X, Y, Yvar)
+            Y = self._svf_transform(parameters.svf, X, Y, Yvar)
             gp = self._get_gp(parameters, X, Y, Yvar)
             self._fit(parameters, gp)
             state = self._ask(parameters, gp, Y)
@@ -364,7 +363,7 @@ class CampaignBaseMixin:
 
 class MultimodalCampaignMixin(CampaignBaseMixin):
     def _svf_transform(self, svf, X, Y, Yvar, task_feature):
-        if svf:
+        if svf is not None:
             new_target = np.empty(shape=(Y.shape[0], 1))
             # Assign each of the values based on the individual modal
             # experiments. The GP should take care of the rest
@@ -412,7 +411,6 @@ class MultimodalCampaignMixin(CampaignBaseMixin):
         self,
         n,
         parameters=None,
-        svf=None,
         pbar=True,
         additional_experiments=True,
     ):
@@ -434,7 +432,7 @@ class MultimodalCampaignMixin(CampaignBaseMixin):
         # The for loop runs over the maximum possible number of experiments
         for ii in tqdm(range(loops), disable=not pbar):
             X, Y, Yvar = self._get_data()
-            Y = self._svf_transform(svf, X, Y, Yvar, task_feature)
+            Y = self._svf_transform(parameters.svf, X, Y, Yvar, task_feature)
 
             if Y.ndim == 1:
                 Y = Y.reshape(-1, 1)

@@ -89,7 +89,7 @@ class PolicyPerformanceEvaluator(MSONable):
             # acquisition function and its keyword arguments for grouping
             # the results together
             parameters = exp.metadata["runtime_properties"][-1]
-            tmp0[str(parameters)].append(exp)
+            tmp0[parameters.acqf_key].append(exp)
 
         results_dict = {}
         for key, policy_results in tmp0.items():

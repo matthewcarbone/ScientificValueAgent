@@ -1,3 +1,4 @@
+import datetime
 import hashlib
 import json
 import random
@@ -6,7 +7,6 @@ from itertools import product
 from os import environ
 from time import perf_counter
 from warnings import warn
-
 
 try:
     import matplotlib as mpl
@@ -328,3 +328,7 @@ def get_hash(s):
     s = s.encode("utf8")
     h.update(s)
     return h.hexdigest()
+
+
+def get_dt_now():
+    return datetime.datetime.now().strftime("%y%m%d-%H%M%S")

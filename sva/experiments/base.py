@@ -193,6 +193,18 @@ class ExperimentMixin(ABC, MSONable):
     data = field(factory=lambda: ExperimentData())
     history = field(factory=lambda: ExperimentHistory())
 
+    @classmethod
+    def from_random(cls, n=3):
+        klass = cls()
+        klass.initialize_data(n=n, protocol="random")
+        return klass
+
+    @classmethod
+    def from_dense(cls, ppd=10):
+        klass = cls()
+        klass.initialize_data(ppd=ppd, protocol="dense")
+        return klass
+
     @abstractproperty
     def properties(self): ...
 
@@ -202,6 +214,10 @@ class ExperimentMixin(ABC, MSONable):
         function for all rows of the provided x input."""
 
         raise NotImplementedError
+
+    @property
+    def name(self):
+        return self.__class__.__name__
 
     def _variance(self, _):
         """Vectorized truth of the variance of the experiment. Distinct from

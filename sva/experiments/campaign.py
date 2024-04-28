@@ -1,5 +1,5 @@
 from copy import deepcopy
-from warnings import warn
+from warnings import catch_warnings, warn
 
 import numpy as np
 import torch
@@ -83,12 +83,13 @@ class CampaignParameters(MSONable):
                     "If train_protocol is a str, must be 'fit_mll' or "
                     "'fit_Adam'"
                 )
-        keys = list(value.keys())
-        if "method" not in keys or "kwargs" not in keys:
-            raise KeyError(
-                "Either method or kwargs was not found in "
-                "train_protocol keys. Both are required."
-            )
+        if isinstance(value, dict):
+            keys = list(value.keys())
+            if "method" not in keys or "kwargs" not in keys:
+                raise KeyError(
+                    "Either method or kwargs was not found in "
+                    "train_protocol keys. Both are required."
+                )
 
     optimize_acqf_kwargs = field(
         default=None, validator=instance_of((dict, type(None)))
@@ -117,7 +118,8 @@ class CampaignParameters(MSONable):
             f"{self.acquisition_function}"
         )
 
-    def __str__(self):
+    @property
+    def acqf_key(self):
         """Gets a simple string representation of the parameters. This actually
         abstracts away all other attributes except the acquisition function,
         which is of primary interest when running a campaign."""
@@ -129,8 +131,9 @@ class CampaignParameters(MSONable):
             return f"UCB-{beta:.01f}"
         raise ValueError("Unknown acquisition function method")
 
-    def __repr__(self):
-        return self.__str__()
+    @property
+    def name(self):
+        return self.acqf_key
 
     def _set_train_protocol(self):
         if self.train_protocol is None:
@@ -200,6 +203,21 @@ class CampaignParameters(MSONable):
         if not isinstance(x, CampaignParameters):
             return False
         return self.get_hash() == x.get_hash()
+
+    @classmethod
+    def from_standard_testing_array(cls, **kwargs):
+        """Gets a standard testing array consisting of EI and a variety of
+        choices for UCB."""
+
+        with catch_warnings(record=True) as _:
+            acqf = {"method": "EI", "kwargs": None}
+            ei = cls(acquisition_function=acqf, **kwargs)
+            parameters = [ei]
+            for beta in [0.1, 1.0, 10.0, 20.0, 50.0, 100.0]:
+                acqf = {"method": "UCB", "kwargs": {"beta": beta}}
+                klass = cls(acquisition_function=acqf, **kwargs)
+                parameters.append(klass)
+        return parameters
 
 
 class CampaignBaseMixin:

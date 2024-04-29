@@ -1,0 +1,9 @@
+# Run a single experiment
+# This method takes the experiment in question and
+# executes its `run` method using the parameters provided
+
+name: single_policy
+experiment_run_parameters:
+  n: 100
+  pbar: false
+  additional_experiments: false

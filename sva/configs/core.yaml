@@ -1,0 +1,23 @@
+defaults:
+  - _self_
+  - experiment: null
+  - procedure: null
+  - campaign_parameters: default.yaml
+  - paths: default.yaml
+  - hydra: default.yaml
+
+# name of the runs
+name: misc 
+
+# seed for random number generators in pytorch, numpy and python.random
+seed: 123
+
+# the number of replications over randomly initializing the experiment
+# starting points
+replicas: 10
+
+# the number of parallel jobs to run
+n_jobs: 12
+
+# whether or not to use full campaign parameter hashes/ids
+use_full_hashes: false

@@ -109,6 +109,11 @@ class CampaignParameters(MSONable):
 
     svf = field(default=None)
 
+    save_models = field(default=False, validator=instance_of(bool))
+    save_acquisition_functions = field(
+        default=False, validator=instance_of(bool)
+    )
+
     def _set_acquisition_function(self):
         if self.acquisition_function is not None:
             return
@@ -288,13 +293,18 @@ class CampaignBaseMixin:
             if kwargs is None:
                 kwargs = {}
             kwargs["best_f"] = Y.max()
-        return ask(
+        state = ask(
             gp.model,
             acquisition_function,
             bounds=self.properties.experimental_domain,
             acquisition_function_kwargs=kwargs,
             optimize_acqf_kwargs=optimize_acqf_kwargs,
         )
+
+        if not parameters.save_acquisition_functions:
+            state.pop("acquisition_function")
+
+        return state
 
     def _optimize_gp(self, parameters, gp, d):
         # Optionally, we can run an additional optimization step on the GP
@@ -351,7 +361,7 @@ class CampaignBaseMixin:
                 "iteration": ii,
                 "N": X.shape[0],
                 "state": state,
-                "easy_gp": deepcopy(gp),
+                "easy_gp": deepcopy(gp) if parameters.save_models else None,
             }
 
             d = self._optimize_gp(parameters, gp, d)
@@ -399,13 +409,18 @@ class MultimodalCampaignMixin(CampaignBaseMixin):
         if is_EI(acquisition_function):
             acquisition_function_kwargs["best_f"] = Y[:, modality_index].max()
 
-        return ask(
+        state = ask(
             gp.model,
             acquisition_function,
             bounds=self.properties.experimental_domain,
             acquisition_function_kwargs=acquisition_function_kwargs,
             optimize_acqf_kwargs=optimize_acqf_kwargs,
         )
+
+        if not parameters.save_acquisition_functions:
+            state.pop("acquisition_function")
+
+        return state
 
     def run(
         self,
@@ -458,7 +473,7 @@ class MultimodalCampaignMixin(CampaignBaseMixin):
                 "iteration": ii,
                 "N": X.shape[0],
                 "state": state,
-                "easy_gp": deepcopy(gp),
+                "easy_gp": deepcopy(gp) if parameters.save_models else None,
             }
 
             d = self._optimize_gp(parameters, gp, d)

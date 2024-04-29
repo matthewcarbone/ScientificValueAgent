@@ -1,6 +1,8 @@
 *.gif
 *.json
 *.yaml
+!sva/configs/*.yaml
+!sva/configs/*/*.yaml
 !.github/dependabot.yaml
 !example_jobs.yaml
 !.pre-commit-config.yaml

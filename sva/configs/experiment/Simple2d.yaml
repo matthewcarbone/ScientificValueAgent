@@ -1,0 +1,3 @@
+_target_: sva.experiments.Simple2d.from_random
+_partial_: true
+n: 3

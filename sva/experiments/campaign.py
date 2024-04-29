@@ -229,6 +229,24 @@ class CampaignParameters(MSONable):
             raise RuntimeError("No parameters!")
         return parameters
 
+    @classmethod
+    def from_simple(cls, acqf, **kwargs):
+        """An extremely simple initializer that understands a variety of
+        inputs for acqf. Essentially, acqf specifies the acquisition function
+        in one of the following ways. If acqf is 'EI', we use EI. If acqf is
+        a float, we use UCB with the provided value as beta."""
+
+        if acqf == "EI":
+            acqf = {"method": "EI", "kwargs": None}
+        else:
+            acqf = float(acqf)
+            acqf = {"method": "UCB", "kwargs": {"beta": acqf}}
+
+        with catch_warnings(record=True) as _:
+            klass = cls(acquisition_function=acqf, **kwargs)
+
+        return klass
+
 
 class CampaignBaseMixin:
     """This class acts as a mixin for experiments in which there is a single

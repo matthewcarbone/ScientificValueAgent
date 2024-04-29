@@ -35,7 +35,7 @@ dependencies = [
     "scipy>=1.12.0",
     "scikit-learn",
     "tqdm",
-    "torch==2.0.0",
+    "torch==2.3.0",
     "gpytorch==1.11.0",
     "botorch==0.9.2",
     "rootutils",

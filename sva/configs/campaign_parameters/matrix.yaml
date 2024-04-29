@@ -1,4 +1,5 @@
 _target_: sva.experiments.CampaignParameters.from_standard_testing_array
+betas: [0.1, 1.0, 5.0, 10.0, 20.0, 50.0, 100.0]
 train_protocol: "fit_mll"
 optimize_acqf_kwargs:
   q: 1

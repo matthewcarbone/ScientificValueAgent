@@ -210,7 +210,7 @@ class CampaignParameters(MSONable):
         return self.get_hash() == x.get_hash()
 
     @classmethod
-    def from_standard_testing_array(cls, **kwargs):
+    def from_standard_testing_array(cls, betas, **kwargs):
         """Gets a standard testing array consisting of EI and a variety of
         choices for UCB."""
 
@@ -218,7 +218,7 @@ class CampaignParameters(MSONable):
             acqf = {"method": "EI", "kwargs": None}
             ei = cls(acquisition_function=acqf, **kwargs)
             parameters = [ei]
-            for beta in [0.1, 1.0, 10.0, 20.0, 50.0, 100.0]:
+            for beta in betas:
                 acqf = {"method": "UCB", "kwargs": {"beta": beta}}
                 klass = cls(acquisition_function=acqf, **kwargs)
                 parameters.append(klass)

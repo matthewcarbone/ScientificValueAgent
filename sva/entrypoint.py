@@ -80,7 +80,7 @@ def run_dynamic_policy(config):
     ppt = instantiate(config.policy_performance_tuner)
     parameters_ppe = instantiate(config.candidate_parameters, _convert_=cc)
 
-    root = config["paths"]["output_dir"]
+    root = Path(config["paths"]["output_dir"])
 
     for unique_seed in range(config.replicas):
         # Seed the initial experiment and create it from the factory

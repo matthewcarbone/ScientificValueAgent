@@ -122,8 +122,8 @@ def run_dynamic_policy(config):
                 flush=True,
             )
 
-        root = root / tmp_experiment.name / f"{seed}.json"
-        tmp_experiment.save(root, json_kwargs={"indent": 4, "sort_keys": True})
+        tmp = root / tmp_experiment.name / f"{seed}.json"
+        tmp_experiment.save(tmp, json_kwargs={"indent": 4, "sort_keys": True})
 
 
 @hydra.main(version_base="1.3", config_path="configs", config_name="core.yaml")

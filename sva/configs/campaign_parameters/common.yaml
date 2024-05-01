@@ -1,0 +1,14 @@
+train_protocol: "fit_mll"
+optimize_acqf_kwargs:
+  q: 1
+  num_restarts: 20
+  raw_samples: 100
+optimize_gp: null
+model_factory:
+  _target_: sva.models.gp.EasySingleTaskGP.from_default
+  _partial_: true
+modality_callback: null
+task_feature: -1
+svf: null
+save_models: false
+save_acquisition_functions: false

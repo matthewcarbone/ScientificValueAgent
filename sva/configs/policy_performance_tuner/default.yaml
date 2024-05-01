@@ -1,0 +1,8 @@
+_target_: sva.experiments.policy_evaluation.PolicyPerformanceEvaluator
+_partial_: true
+
+# The number of experiments to look ahead when choosing the next policy
+n_look_ahead: 5
+
+# Number of dreamed experiments to average over
+n_dreams: 50

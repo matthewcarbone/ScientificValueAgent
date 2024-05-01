@@ -1,7 +1,5 @@
 _target_: sva.experiments.CampaignParameters.from_simple
-
-# Defaults to UCB(10)
-acqf: 10.0
+_partial_: true
 
 defaults:
   - _self_

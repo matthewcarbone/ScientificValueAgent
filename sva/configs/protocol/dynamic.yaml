@@ -1,0 +1,6 @@
+# @package _global_
+
+defaults:
+  - /campaign_parameters@candidate_parameters: matrix.yaml
+  - override /campaign_parameters: simple_factory.yaml 
+  - override /policy_performance_tuner: default.yaml

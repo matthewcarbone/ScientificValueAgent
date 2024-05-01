@@ -15,6 +15,22 @@ from .base import ExperimentMixin
 
 @define
 class PolicyPerformanceEvaluator(MSONable):
+    """
+    Parameters
+    ----------
+    n_look_ahead : int
+        The number of steps to take in each simulated experiments (the
+        number of experiments to run/new data points to sample).
+    n_dreams : int
+        The number of samples from the gp fit on the original data to run
+        the simulations over.
+    seed : int, optional
+        the seed for the campaign. this is required since multiprocessing
+        does not pass the generator state to each of the downstream tasks.
+        this is one of the few instances where utils.seed_everything will
+        be called internally.
+    """
+
     experiment = field()
 
     @experiment.validator
@@ -28,6 +44,10 @@ class PolicyPerformanceEvaluator(MSONable):
         default=None,
         validator=validators.optional(validators.instance_of((Path, str))),
     )
+
+    n_look_ahead = field(default=5, validator=validators.instance_of(int))
+    n_dreams = field(default=50, validator=validators.instance_of(int))
+    seed = field(default=123, validator=validators.instance_of(int))
 
     def __attrs_post_init__(self):
         if self.checkpoint_dir is not None:
@@ -50,9 +70,9 @@ class PolicyPerformanceEvaluator(MSONable):
 
         experiment = job["experiment"]
         parameters = job["parameters"]
-        n = job["n_steps"]
+        n = job["n_look_ahead"]
 
-        experiment.run(n, parameters, pbar=False)
+        experiment.run(n, parameters, pbar=False, additional_experiments=True)
         if ckpt_name is not None:
             experiment.save(ckpt_name)
 
@@ -137,35 +157,42 @@ class PolicyPerformanceEvaluator(MSONable):
 
         return results_dict
 
-    def run(
-        self,
-        n_steps,
-        n_dreams,
-        parameter_list,
-        n_jobs=12,
-        seed=123,
-    ):
+    def get_best_policy(self):
+        policy_results = self.process_results()
+
+        # results_dict[key]["learning_rate"] = learning_rate
+        r = [
+            (key, value["learning_rate"])
+            for key, value in policy_results.items()
+        ]
+        r.sort(key=lambda x: x[1])
+        best_policy_method = r[0]
+        policy = best_policy_method[0]
+        learning_rate = best_policy_method[1]
+        if policy == "EI":
+            kwargs = None
+        else:
+            policy, beta = policy.split("-")
+            beta = float(beta)
+            kwargs = {"beta": beta}
+        d = {
+            "method": policy,
+            "kwargs": kwargs,
+            "learning_rate": learning_rate,
+        }
+        return d
+
+    def run(self, parameter_list, n_jobs=12):
         """Runs a policy performance evaluation on the experiment provided
         at initialization. Results are saved in the history attribute.
 
         Parameters
         ----------
-        n_steps : int
-            The number of steps to take in each simulated experiments (the
-            number of experiments to run/new data points to sample).
-        n_dreams : int
-            The number of samples from the gp fit on the original data to run
-            the simulations over.
         parameter_list : list
             A list of CampaignParameter objects used for the policy performance
             evaluation.
         n_jobs : int
             number of parallel multiprocessing jobs to use at a time.
-        seed : int, optional
-            the seed for the campaign. this is required since multiprocessing
-            does not pass the generator state to each of the downstream tasks.
-            this is one of the few instances where utils.seed_everything will
-            be called internally.
         """
 
         jobs = []
@@ -173,12 +200,12 @@ class PolicyPerformanceEvaluator(MSONable):
         experiment = deepcopy(self.experiment)
 
         for parameters in parameter_list:
-            for dream_index in range(n_dreams):
+            for dream_index in range(self.n_dreams):
                 # Get the current seed and seed the current dreamed experiment
                 # if the seed is provided
                 job_seed = None
-                if seed is not None:
-                    job_seed = seed + dream_index
+                if self.seed is not None:
+                    job_seed = self.seed + dream_index
                     seed_everything(job_seed)
 
                 # Get the dreamed experiment
@@ -198,7 +225,7 @@ class PolicyPerformanceEvaluator(MSONable):
                     "dream_index": dream_index,
                     "experiment": dream_experiment,
                     "parameters": parameters,
-                    "n_steps": n_steps,
+                    "n_look_ahead": self.n_look_ahead,
                 }
                 name = self._get_name_from_job(job)
                 job["name"] = name

@@ -44,7 +44,7 @@ def _run_job(job):
         path = _get_name(experiment, config, params, seed)
         experiment.save(path, json_kwargs={"indent": 4, "sort_keys": True})
 
-    print(f"done with exp: {path} in {timer.dt:.02f} s")
+    print(f"done with exp: {path} in {timer.dt:.02f} s", flush=True)
 
 
 def run_single_policy(config):
@@ -118,7 +118,8 @@ def run_dynamic_policy(config):
 
             print(
                 f"({ii:02}) Best policy: {d} with LR={lr:.02f} "
-                f"next={next_point} finished in {timer.dt:.02f} s"
+                f"next={next_point} finished in {timer.dt:.02f} s",
+                flush=True,
             )
 
         root = root / tmp_experiment.name / f"{seed}.json"

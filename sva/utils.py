@@ -22,6 +22,9 @@ except ImportError:
 import numpy as np
 import torch
 from scipy.spatial import distance_matrix
+from scipy.stats import qmc
+
+SCIPY_SEED = {"seed": None}
 
 
 class Timer:
@@ -45,6 +48,9 @@ def seed_everything(seed):
         torch.manual_seed(seed)
         random.seed(seed)
         np.random.seed(seed)
+
+        # The scipy seed somehow needs to be seeded separately
+        SCIPY_SEED["seed"] = seed
 
 
 def random_indexes(array_size, samples=10):
@@ -143,6 +149,29 @@ def get_random_points(domain, n=1):
 
     X = np.random.random(size=(n, domain.shape[1]))
     return scale_by_domain(X, domain)
+
+
+def get_latin_hypercube_points(domain, n=5):
+    """Gets a random selection of points in the provided domain using the
+    Latin Hypercube sampling algorithm.
+
+    Parameters
+    ----------
+    domain : np.ndarray
+        The domain to scale to. Should be of shape (2, d).
+    n : int
+        Total number of points.
+
+    Returns
+    -------
+    np.ndarray
+    """
+
+    sampler = qmc.LatinHypercube(
+        d=domain.shape[1], optimization="random-cd", seed=SCIPY_SEED["seed"]
+    )
+    sample = sampler.random(n=n)
+    return qmc.scale(sample, *domain)
 
 
 def next_closest_raster_scan_point(

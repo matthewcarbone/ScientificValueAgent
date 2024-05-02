@@ -1,4 +1,5 @@
 _target_: sva.experiments.CampaignParameters.from_standard_testing_array
+_partial_: true
 betas: [5.0, 10.0, 20.0, 50.0, 100.0]
 use_EI: true
 

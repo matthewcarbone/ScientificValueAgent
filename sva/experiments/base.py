@@ -7,7 +7,11 @@ import torch
 from attrs import define, field, frozen, validators
 
 from sva.monty.json import MSONable
-from sva.utils import get_coordinates, get_random_points
+from sva.utils import (
+    get_coordinates,
+    get_latin_hypercube_points,
+    get_random_points,
+)
 
 
 @define
@@ -200,6 +204,12 @@ class ExperimentMixin(ABC, MSONable):
         return klass
 
     @classmethod
+    def from_LatinHypercube(cls, n=5):
+        klass = cls()
+        klass.initialize_data(n=n, protocol="LatinHypercube")
+        return klass
+
+    @classmethod
     def from_dense(cls, ppd=10):
         klass = cls()
         klass.initialize_data(ppd=ppd, protocol="dense")
@@ -300,6 +310,12 @@ class ExperimentMixin(ABC, MSONable):
         domain = self.properties.experimental_domain
         return get_random_points(domain, n=n)
 
+    def get_latin_hypercube_coordinates(self, n=5):
+        """Gets n Latin Hypercube-random points."""
+
+        domain = self.properties.experimental_domain
+        return get_latin_hypercube_points(domain, n)
+
     def get_dense_coordinates(self, ppd):
         """Gets a set of dense coordinates.
 
@@ -345,19 +361,23 @@ class ExperimentMixin(ABC, MSONable):
         self.data.update_X(x)
         self.data.update_Y(self)
 
-    def initialize_data(self, n, protocol="random"):
+    def initialize_data(self, protocol="random", **kwargs):
         """Initializes the X data via some provided protocol.
 
         Parameters
         ----------
-        n : int
-            The number of points to use initially.
         protocol : str, optional
             The method for using to initialize the data.
+        kwargs
+            To pass to the particular method.
         """
 
         if protocol == "random":
-            X = self.get_random_coordinates(n=n)
+            X = self.get_random_coordinates(**kwargs)
+        elif protocol == "LatinHypercube":
+            X = self.get_latin_hypercube_coordinates(**kwargs)
+        elif protocol == "dense":
+            X = self.get_dense_coordinates(**kwargs)
         else:
             raise NotImplementedError(f"Unknown provided protocol {protocol}")
 

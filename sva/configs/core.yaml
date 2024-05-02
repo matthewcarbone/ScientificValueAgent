@@ -18,6 +18,9 @@ seed: 123
 # the number of total experiments to run
 n: 100
 
+# the number of exploration steps to take before implement a policy
+n_explore: 0
+
 # if this is true, then we will actually run n (or n//q) experiments
 # if it's false, it will adapt the number of experiments such that n is
 # the total (accounting for the initial random/grid initialized points)

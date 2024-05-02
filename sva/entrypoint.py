@@ -91,6 +91,10 @@ def run_dynamic_policy(config):
 
         print(f"\n:: Starting experiment at seed {seed}")
 
+        if config.n_explore > 0:
+            p = parameters(acqf=1000.0)
+            tmp_experiment.run(n=config.n_explore, parameters=p)
+
         # Here's the true experiment loop
         ii = 0
         while tmp_experiment.data.X.shape[0] < config["n"]:
@@ -133,7 +137,7 @@ def run_dynamic_policy(config):
             print(f"finished in {timer.dt:.02f} s")
             ii += 1
 
-        tmp = root / tmp_experiment.name / f"{seed}.json"
+        tmp = root / tmp_experiment.name / "dynamic" / f"{seed}.json"
         tmp_experiment.save(tmp, json_kwargs={"indent": 4, "sort_keys": True})
 
 

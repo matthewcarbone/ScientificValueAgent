@@ -180,7 +180,7 @@ class PolicyPerformanceEvaluator(MSONable):
             "kwargs": kwargs,
             "learning_rate": learning_rate,
         }
-        return d
+        return d, r
 
     def run(self, parameter_list, n_jobs=12):
         """Runs a policy performance evaluation on the experiment provided

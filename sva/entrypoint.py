@@ -1,4 +1,5 @@
 from pathlib import Path
+from pprint import pprint
 
 import hydra
 from hydra.utils import instantiate
@@ -88,10 +89,11 @@ def run_dynamic_policy(config):
         seed_everything(seed)
         tmp_experiment = experiment()
 
-        print(f":: Starting experiment at seed {seed}")
+        print(f"\n:: Starting experiment at seed {seed}")
 
         # Here's the true experiment loop
-        for ii in range(config["n"]):
+        ii = 0
+        while tmp_experiment.data.X.shape[0] < config["n"]:
             with Timer() as timer:
                 # First, we figure out which acquisition function to use
                 # the policy performance tuner is also a factory
@@ -100,7 +102,7 @@ def run_dynamic_policy(config):
                 policy_evaluator.run(
                     parameter_list=parameters_ppe, n_jobs=config.n_jobs
                 )
-                d = policy_evaluator.get_best_policy()
+                d, all_learning_rates = policy_evaluator.get_best_policy()
                 lr = d.pop("learning_rate")
 
                 # Get the next parameters
@@ -108,19 +110,28 @@ def run_dynamic_policy(config):
                 tmp_parameters = parameters(
                     acqf="EI" if d["kwargs"] is None else d["kwargs"]["beta"]
                 )
+
+                # We run for the number of experiments we look ahead, since
+                # that is where the learning rate is calculated
                 tmp_experiment.run(
-                    n=1,
+                    n=policy_evaluator.n_look_ahead,
                     parameters=tmp_parameters,
                     pbar=False,
                     additional_experiments=True,
                 )
-                next_point = tmp_experiment.data.X[-1, :]
+                next_points = tmp_experiment.data.X[
+                    -policy_evaluator.n_look_ahead :, :
+                ]
 
-            print(
-                f"({ii:02}) Best policy: {d} with LR={lr:.02f} "
-                f"next={next_point} finished in {timer.dt:.02f} s",
-                flush=True,
-            )
+            print(f"({ii:03}) ", "-" * 80)
+            print(f"Best policy with LR={lr:.02f}")
+            pprint(d)
+            print("Next points:")
+            pprint(next_points)
+            print("All learning rates")
+            pprint(all_learning_rates)
+            print(f"finished in {timer.dt:.02f} s")
+            ii += 1
 
         tmp = root / tmp_experiment.name / f"{seed}.json"
         tmp_experiment.save(tmp, json_kwargs={"indent": 4, "sort_keys": True})

@@ -37,7 +37,7 @@ def _run_job(job):
         seed_everything(seed)
         experiment = experiment()
 
-        if config.n_explore > 0:
+        if config["n_explore"] > 0:
             p = CampaignParameters.from_simple(acqf=10000.0)
             experiment.run(n=config.n_explore, parameters=p)
 

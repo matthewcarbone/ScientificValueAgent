@@ -7,6 +7,7 @@ from joblib import Parallel, delayed
 from omegaconf import OmegaConf
 
 from sva import __version__
+from sva.experiments.campaign import CampaignParameters
 from sva.utils import Timer, seed_everything
 
 
@@ -35,6 +36,11 @@ def _run_job(job):
 
         seed_everything(seed)
         experiment = experiment()
+
+        if config.n_explore > 0:
+            p = CampaignParameters.from_simple(acqf=10000.0)
+            experiment.run(n=config.n_explore, parameters=p)
+
         experiment.run(
             n=n,
             parameters=params,
@@ -92,7 +98,7 @@ def run_dynamic_policy(config):
         print(f"\n:: Starting experiment at seed {seed}")
 
         if config.n_explore > 0:
-            p = parameters(acqf=1000.0)
+            p = parameters(acqf=10000.0)
             tmp_experiment.run(n=config.n_explore, parameters=p)
 
         # Here's the true experiment loop

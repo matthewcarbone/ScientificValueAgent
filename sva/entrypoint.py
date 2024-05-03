@@ -39,7 +39,12 @@ def _run_job(job):
 
         if config["n_explore"] > 0:
             p = CampaignParameters.from_simple(acqf=10000.0)
-            experiment.run(n=config["n_explore"], parameters=p)
+            experiment.run(
+                n=config["n_explore"],
+                parameters=p,
+                additional_experiments=True,
+                pbar=pbar,
+            )
 
         experiment.run(
             n=n,
@@ -99,7 +104,12 @@ def run_dynamic_policy(config):
 
         if config.n_explore > 0:
             p = parameters(acqf=10000.0)
-            tmp_experiment.run(n=config.n_explore, parameters=p)
+            tmp_experiment.run(
+                n=config.n_explore,
+                parameters=p,
+                additional_experiments=True,
+                pbar=False,
+            )
 
         # Here's the true experiment loop
         ii = 0

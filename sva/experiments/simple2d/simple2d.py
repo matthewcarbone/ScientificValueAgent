@@ -1,20 +1,16 @@
 import numpy as np
 from attrs import define, field
 
-from sva.monty.json import MSONable
-
-from ..base import ExperimentMixin, ExperimentProperties
-from ..campaign import CampaignBaseMixin
+from ..base import Experiment, ExperimentProperties
 
 
 @define
-class Simple2d(ExperimentMixin, CampaignBaseMixin, MSONable):
+class Simple2d(Experiment):
     properties = field(
         factory=lambda: ExperimentProperties(
             n_input_dim=2,
             n_output_dim=1,
-            valid_domain=None,
-            experimental_domain=np.array([[-4.0, 5.0], [-5.0, 4.0]]).T,
+            domain=np.array([[-4.0, 5.0], [-5.0, 4.0]]).T,
         )
     )
 

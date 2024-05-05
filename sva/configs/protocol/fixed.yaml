@@ -1,9 +1,0 @@
-# @package _global_
-
-# Run a single experiment
-# This method takes the experiment in question and
-# executes its `run` method using the parameters provided
-
-defaults:
-  - override /campaign_parameters: simple.yaml
-  - override /policy_performance_tuner: null

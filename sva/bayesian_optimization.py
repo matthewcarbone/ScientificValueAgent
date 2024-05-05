@@ -1,15 +1,71 @@
 from warnings import catch_warnings
 
 import torch
+from botorch.acquisition import ExpectedImprovement, UpperConfidenceBound
+from botorch.acquisition.analytic import AnalyticAcquisitionFunction
+from botorch.acquisition.monte_carlo import (
+    MCAcquisitionFunction,
+    qExpectedImprovement,
+    qUpperConfidenceBound,
+)
 from botorch.optim import optimize_acqf
+from botorch.utils.transforms import (
+    concatenate_pending_points,
+    t_batch_mode_transform,
+)
 
-from sva.utils import get_function_from_signature
+
+class MaxVariance(AnalyticAcquisitionFunction):
+    def __init__(self, model, **kwargs):
+        super().__init__(model=model, **kwargs)
+
+    @t_batch_mode_transform(expected_q=1)
+    def forward(self, X):
+        posterior = self.model.posterior(
+            X=X, posterior_transform=self.posterior_transform
+        )
+        mean = posterior.mean
+        view_shape = mean.shape[:-2] if mean.shape[-2] == 1 else mean.shape[:-1]
+        return posterior.variance.view(view_shape)
+
+
+class qMaxVariance(MCAcquisitionFunction):
+    def __init__(
+        self,
+        model,
+        sampler=None,
+        objective=None,
+        posterior_transform=None,
+        X_pending=None,
+    ):
+        super().__init__(
+            model=model,
+            sampler=sampler,
+            objective=objective,
+            posterior_transform=posterior_transform,
+            X_pending=X_pending,
+        )
+
+    @concatenate_pending_points
+    @t_batch_mode_transform()
+    def forward(self, X):
+        posterior = self.model.posterior(
+            X=X, posterior_transform=self.posterior_transform
+        )
+        samples = self.sampler(posterior)
+        obj = self.objective(samples, X=X)
+        mean = obj.mean(dim=0)
+        ucb_samples = (obj - mean).abs()
+        return ucb_samples.max(dim=-1)[0].mean(dim=0)
+
 
 ACQF_ALIASES = {
-    "EI": "botorch.acquisition.analytic:ExpectedImprovement",
-    "UCB": "botorch.acquisition.analytic:UpperConfidenceBound",
-    "qEI": "botorch.acquisition.monte_carlo:qExpectedImprovement",
-    "qUCB": "botorch.acquisition.monte_carlo:qUpperConfidenceBound",
+    "EI": ExpectedImprovement,
+    "UCB": UpperConfidenceBound,
+    "qEI": qExpectedImprovement,
+    "qUCB": qUpperConfidenceBound,
+    "MaxVar": MaxVariance,
+    "qMaxVar": qMaxVariance,
 }
 
 
@@ -30,7 +86,7 @@ def ask(
     acquisition_function,
     bounds,
     acquisition_function_kwargs=None,
-    optimize_acqf_kwargs=None,
+    optimize_kwargs=None,
 ):
     """
     "Asks" the acquisition function to tell the user which point(s) to sample
@@ -53,7 +109,7 @@ def ask(
         The bounds on the procedure.
     acquisition_function_kwargs : dict
         Keyword arguments to pass to the acquisition function.
-    optimize_acqf_kwargs : dict
+    optimize_kwargs : dict
         Keyword arguments to pass to the optimizer.
 
     Raises
@@ -73,16 +129,12 @@ def ask(
     kwargs = acquisition_function_kwargs if acquisition_function_kwargs else {}
 
     if isinstance(acquisition_function, str):
-        signature_from_alias = ACQF_ALIASES.get(acquisition_function)
-        if signature_from_alias:
-            factory = get_function_from_signature(signature_from_alias)
-        else:
-            factory = get_function_from_signature(acquisition_function)
-        acqf = factory(gp, **kwargs)
+        factory = ACQF_ALIASES[acquisition_function]
     else:
-        acqf = acquisition_function(gp, **kwargs)
+        factory = acquisition_function
+    acqf = factory(gp, **kwargs)
 
-    kwargs = optimize_acqf_kwargs if optimize_acqf_kwargs else {}
+    kwargs = optimize_kwargs if optimize_kwargs else {}
 
     with catch_warnings(record=True) as w:
         next_points, value = optimize_acqf(acqf, bounds=bounds, **kwargs)

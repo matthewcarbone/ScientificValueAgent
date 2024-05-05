@@ -13,8 +13,8 @@ from botorch.models import FixedNoiseGP, MultiTaskGP, SingleTaskGP
 from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
 
+from sva.bayesian_optimization import ask
 from sva.models import DEVICE
-from sva.models.gp.bo import ask
 from sva.monty.json import MSONable
 from sva.utils import Timer, get_coordinates
 
@@ -175,41 +175,6 @@ def get_train_protocol(train_protocol):
     return train_method, train_kwargs
 
 
-# # From the GPyTorch tutorials
-# # https://docs.gpytorch.ai/en/stable/examples/01_Exact_GPs
-# /GP_Regression_on_Classification_Labels.html
-# # TODO: make this a bit more flexible in terms of the kernels and whatnot
-# class DirichletGPModel(gpytorch.models.ExactGP):
-# # we can pass to it
-#     def __init__(self, train_x, train_y, likelihood, num_classes):
-#         super(DirichletGPModel, self).__init__(train_x, train_y, likelihood)
-#         self.mean_module = gpytorch.means.ConstantMean(
-#             batch_shape=torch.Size((num_classes,))
-#         )
-#         self.covar_module = gpytorch.kernels.ScaleKernel(
-#             gpytorch.kernels.RBFKernel(batch_shape=torch.Size((num_classes,))),
-#             batch_shape=torch.Size((num_classes,)),
-#         )
-#
-#     def forward(self, x):
-#         mean_x = self.mean_module(x)
-#         covar_x = self.covar_module(x)
-#         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
-#
-#
-# def get_simple_classifer_model(train_x, train_y, learn_additional_noise=True):
-#     likelihood = gpytorch.likelihoods.DirichletClassificationLikelihood(
-#         train_y, learn_additional_noise=learn_additional_noise
-#     )
-#     model = DirichletGPModel(
-#         train_x,
-#         likelihood.transformed_targets,
-#         likelihood,
-#         num_classes=likelihood.num_classes,
-#     )
-#     return model
-
-
 def fit_gp_gpytorch_mll_(gp, device=DEVICE, **fit_kwargs):
     """Fits a provided GP model using the fit_gpytorch_mll method from
     botorch.
@@ -325,6 +290,8 @@ class GPMixin(MSONable):
     X = field()
     Y = field()
     Yvar = field()
+    default_fitting_method = field(default="fit_mll")
+    default_fitting_kwargs = field(factory=dict)
     warnings = field(factory=list)
 
     @X.validator
@@ -356,10 +323,10 @@ class GPMixin(MSONable):
         if value.shape[1] != 1:
             raise ValueError("Y_noise must have only one target output")
 
-    def fit_mll(self, device="cpu", **fit_kwargs):
+    def fit_mll(self, device=DEVICE, **fit_kwargs):
         return fit_gp_gpytorch_mll_(self.model, device=device, **fit_kwargs)
 
-    def fit_Adam(self, device="cpu", lr=0.05, n_train=200):
+    def fit_Adam(self, device=DEVICE, lr=0.05, n_train=200):
         with catch_warnings(record=True) as w:
             results = fit_gp_Adam_(
                 self.model, self.X, device=device, lr=lr, n_train=n_train

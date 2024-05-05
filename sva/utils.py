@@ -24,7 +24,7 @@ import torch
 from scipy.spatial import distance_matrix
 from scipy.stats import qmc
 
-SCIPY_SEED = {"seed": None}
+GLOBAL_STATE = {"seed": None}
 
 
 class Timer:
@@ -50,7 +50,7 @@ def seed_everything(seed):
         np.random.seed(seed)
 
         # The scipy seed somehow needs to be seeded separately
-        SCIPY_SEED["seed"] = seed
+        GLOBAL_STATE["seed"] = seed
 
 
 def random_indexes(array_size, samples=10):
@@ -168,7 +168,7 @@ def get_latin_hypercube_points(domain, n=5):
     """
 
     sampler = qmc.LatinHypercube(
-        d=domain.shape[1], optimization="random-cd", seed=SCIPY_SEED["seed"]
+        d=domain.shape[1], optimization="random-cd", seed=GLOBAL_STATE["seed"]
     )
     sample = sampler.random(n=n)
     return qmc.scale(sample, *domain)

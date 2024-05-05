@@ -1,34 +1,20 @@
 defaults:
   - _self_
   - experiment: ???
-  - campaign_parameters: default.yaml
-  - policy_performance_tuner: null
+  - policy: fixed.yaml
   - paths: default.yaml
   - hydra: default.yaml
-  - protocol : ???
 
 # name of the runs
-name: misc 
+name: misc
 
-# seed for random number generators in pytorch, numpy and python.random
+# Seed for random number generators in pytorch, numpy and python.random
 # this seed applies to everything and is propogated through other experiments
 # such as in policy performance tuning
 seed: 123
 
-# the number of total experiments to run
-n: 100
-
-# the number of exploration steps to take before implement a policy
-n_explore: 0
-
-# if this is true, then we will actually run n (or n//q) experiments
-# if it's false, it will adapt the number of experiments such that n is
-# the total (accounting for the initial random/grid initialized points)
-additional_experiments: false
-
-# whether or not to use a progress bar
-# generally should probably not use one due to multiprocessing
-pbar: false
+# Debugging mode
+debug: false
 
 # the number of replications over randomly initializing the experiment
 # starting points
@@ -37,6 +23,3 @@ replicas: 10
 # the number of parallel jobs to run
 n_jobs: 12
 
-# whether or not to use full campaign parameter hashes/ids
-# false is optimal for readability in the file system
-use_full_hashes: false

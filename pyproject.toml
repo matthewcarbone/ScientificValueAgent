@@ -42,6 +42,7 @@ dependencies = [
     "pyyaml",
     "pyastronomy==0.20.0",
     "dunamai==1.19.2",
+    "loguru",
 ]
 
 [project.scripts]

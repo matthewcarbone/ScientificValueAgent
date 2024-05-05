@@ -1,3 +1,1 @@
-_target_: sva.experiments.Simple2d.from_LatinHypercube
-_partial_: true
-n: 5
+_target_: sva.experiments.Simple2d

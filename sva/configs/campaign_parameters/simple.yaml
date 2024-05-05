@@ -1,8 +1,0 @@
-_target_: sva.experiments.CampaignParameters.from_simple
-
-# Defaults to UCB(10)
-acqf: 10.0
-
-defaults:
-  - _self_
-  - common.yaml

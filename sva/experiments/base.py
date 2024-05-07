@@ -76,6 +76,18 @@ class Experiment(ABC, MSONable):
     def N(self):
         return self.data.N
 
+    @property
+    def n_input_dim(self):
+        return self.properties.n_input_dim
+
+    @property
+    def n_output_dim(self):
+        return self.properties.n_output_dim
+
+    @property
+    def domain(self):
+        return self.properties.domain
+
     def _dtruth(self):
         """The derivative of the truth value with respect to x. May not be
         implemented, depending on the function."""

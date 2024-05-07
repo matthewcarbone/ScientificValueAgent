@@ -1,10 +1,14 @@
 from abc import ABC, abstractmethod
 from copy import deepcopy
 
-from attrs import define, field, frozen
-from attrs.validators import ge, instance_of, optional
+import numpy as np
+import torch
+from attrs import define, field
+from attrs.validators import ge, instance_of
+from botorch.optim import optimize_acqf
 
-from sva.bayesian_optimization import ask
+from sva.bayesian_optimization import parse_acquisition_function
+from sva.logger import logger
 from sva.monty.json import MSONable
 
 
@@ -78,53 +82,53 @@ class FixedPolicy(Policy):
     ----------
     model_factory : callable
         Callable that produces the model as a function of X and Y.
-    model_fitting_method : str
-        The method accessed from the model via getattr used to fit the model
-        on the data.
-    model_fitting_kwargs : dict
-        Keyword arguments to pass to the fitting procedure.
+    model_fitting_function : callable
+        Function used for fitting the model. Takes an EasyGP object as input
+        (or at least one with the model attribute).
     """
 
     model_factory = field()
-    model_fitting_method = field(default="fit_mll")
-    model_fitting_kwargs = field(factory=dict)
     acquisition_function = field()
-    acquisition_function_kwargs = field()
     optimize_kwargs = field()
+    model_fitting_function = field()
     save_acquisition_function = field(
         default=False, validator=instance_of(bool)
     )
     save_model = field(default=False, validator=instance_of(bool))
 
+    def __attrs_post_init__(self):
+        logger.debug(f"{self.name} initialized as: {self}")
+
     def step(self, experiment, data):
         model = self.model_factory(data.X, data.Y)
         # TODO: eventually we want to pass Yvar too
-        #
+
         # Fit the model
-        getattr(model, self.model_fitting_method)(**self.model_fitting_kwargs)
+        fit_results = self.model_fitting_function(model)
+        logger.debug(f"Model fit, output is: {fit_results}")
 
-        # ask
-        ask_state = ask(
-            model,
-            self.acquisition_function,
-            bounds=experiment.domain,
-            acquisition_function_kwargs=self.acquisition_function_kwargs,
-            optimize_kwargs=self.optimize_kwargs,
-        )
-        X = ask_state["next_points"]
+        # Ask for the next point
+        factory, is_EI = parse_acquisition_function(self.acquisition_function)
+        kwargs = {"best_f": data.Y.max()} if is_EI else {}
+        acqf = factory(model.model, **kwargs)
+        bounds = torch.tensor(experiment.domain)
+        X, v = optimize_acqf(acqf, bounds=bounds, **self.optimize_kwargs)
+        X = X.numpy()
+        array_str = np.array_str(X, precision=5)
+        logger.debug(f"Next points {array_str} with value {v}")
+
+        # "Run" the next experiment
         Y = experiment(X)
-        if not self.save_acquisition_function:
-            ask_state.pop("acquisition_function")
 
-        metadata = {
-            "experiment": experiment.name,
-            "policy": self.name,
-            "acquisition_function": self.acquisition_function,
-            "ask_state": ask_state,
-        }
+        # Get the metadata
+        metadata = {"experiment": experiment.name, "policy": self.name}
+
+        if self.save_acquisition_function:
+            metadata["acquisition_function"] = deepcopy(acqf)
 
         if self.save_model:
             metadata["model"] = deepcopy(model)
 
-        data.update(X, Y, metadata)
+        data.update(X, Y, [metadata])
+
         return PolicyState()

@@ -2,18 +2,19 @@
 botorch."""
 
 from copy import deepcopy
-from warnings import catch_warnings, warn
 
 import gpytorch
 import numpy as np
 import torch
 from attrs import define, field, validators
+from botorch.acquisition.analytic import UpperConfidenceBound
 from botorch.fit import fit_gpytorch_mll
 from botorch.models import FixedNoiseGP, MultiTaskGP, SingleTaskGP
 from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
+from botorch.optim import optimize_acqf
 
-from sva.bayesian_optimization import ask
+from sva.logger import logger
 from sva.models import DEVICE
 from sva.monty.json import MSONable
 from sva.utils import Timer, get_coordinates
@@ -54,7 +55,7 @@ def get_model_hyperparameters(model):
         The model with named_parameters() defined on it.
 
     Returns
-    -------
+    -----
     dict
     """
 
@@ -148,33 +149,6 @@ def get_simple_model(
     return deepcopy(model)
 
 
-def get_train_protocol(train_protocol):
-    """Gets the training protocol and keyword arguments from the string or
-    dict train_protocol input.
-
-    Parameters
-    ----------
-    train_protocol : dict or str
-        The protocol and its keyword arguments. Must be a method defined on
-        the EasyGP. For example: {"method": "fit_Adam", "kwargs": None}. If
-        only a string is provided, attemps that method with no keyword args.
-
-    Returns
-    -------
-    tuple
-        The training method (str) and keyword arguments (dict)
-    """
-    if isinstance(train_protocol, str):
-        train_method = train_protocol
-        train_kwargs = {}
-    elif isinstance(train_protocol, dict):
-        train_method = train_protocol["method"]
-        train_kwargs = train_protocol["kwargs"]
-    else:
-        raise ValueError(f"Invalid train_protocol {train_protocol}")
-    return train_method, train_kwargs
-
-
 def fit_gp_gpytorch_mll_(gp, device=DEVICE, **fit_kwargs):
     """Fits a provided GP model using the fit_gpytorch_mll method from
     botorch.
@@ -229,6 +203,13 @@ def fit_gp_Adam_(gp, X, device=DEVICE, lr=0.05, n_train=200):
             optimizer.step()
 
     return {"elapsed": timer.dt, "losses": losses}
+
+
+def fit_EasyGP_mll(easygp, device=DEVICE, **kwargs):
+    """Utility for fitting EasyGP model. Just a lightweight wrapper to
+    make it easier."""
+
+    return fit_gp_gpytorch_mll_(easygp.model, device=device, **kwargs)
 
 
 def predict(gp, X, observation_noise=True):
@@ -292,7 +273,6 @@ class GPMixin(MSONable):
     Yvar = field()
     default_fitting_method = field(default="fit_mll")
     default_fitting_kwargs = field(factory=dict)
-    warnings = field(factory=list)
 
     @X.validator
     def valid_X(self, _, value):
@@ -327,29 +307,21 @@ class GPMixin(MSONable):
         return fit_gp_gpytorch_mll_(self.model, device=device, **fit_kwargs)
 
     def fit_Adam(self, device=DEVICE, lr=0.05, n_train=200):
-        with catch_warnings(record=True) as w:
-            results = fit_gp_Adam_(
-                self.model, self.X, device=device, lr=lr, n_train=n_train
-            )
-        self.warnings.append(w)
-        return results
+        return fit_gp_Adam_(
+            self.model, self.X, device=device, lr=lr, n_train=n_train
+        )
 
     def predict(self, X, observation_noise=True):
-        with catch_warnings(record=True) as w:
-            results = predict(self.model, X, observation_noise)
-        self.warnings.append(w)
-        return results
+        return predict(self.model, X, observation_noise)
 
     def sample(self, X, samples=20, observation_noise=False):
         return sample(self.model, X, samples, observation_noise)
 
-    def optimize(self, experiment=None, domain=None, **kwargs):
+    def find_optima(self, domain, **kwargs):
         """Finds the optima of the GP, either the minimum or the maximum.
 
         Properties
         ----------
-        experiment
-            The experiment object, mutually exclusive to bounds.
         domain
             The bounds of the acquisition, mutually exclusive to experiment.
             Note that the bounds should be provided in the same format as that
@@ -359,14 +331,8 @@ class GPMixin(MSONable):
             Additional keyword arguments to pass to the optimizer.
         """
 
-        if not ((experiment is not None) ^ (domain is not None)):
-            raise ValueError("Provide either experiment or bounds, not both")
-
-        if experiment is not None:
-            domain = experiment.properties.experimental_domain
-
         if "q" in kwargs:
-            warn(
+            logger.warning(
                 "q has been provided to the optimizer but will be "
                 "overridden to 1"
             )
@@ -380,43 +346,31 @@ class GPMixin(MSONable):
         if "raw_samples" not in kwargs:
             kwargs["raw_samples"] = 100
 
-        result = ask(
-            self.model,
-            "UCB",
-            bounds=domain,
-            acquisition_function_kwargs={"beta": 0.0},
-            optimize_acqf_kwargs={**kwargs},
-        )
-        return result
+        acqf = UpperConfidenceBound(self.model.model, beta=0.0)
+        next_pts, _ = optimize_acqf(acqf, bounds=domain, **kwargs)
+        return next_pts
 
-    def dream(self, ppd=20, experiment=None, domain=None):
+    def dream(self, domain, ppd=20):
         """Creates a new Gaussian Process model by sampling a single instance
         of the GP, and then retraining a _new_ GP on a densely sampled grid
         assuming that single sample is the ground truth.
 
         Parameters
         ----------
-        experiment : ExperimentMixin
-            The experiment object, mutually exclusive to bounds.
         domain : np.ndarray
             The bounds of the acquisition, mutually exclusive to experiment.
             Note that the bounds should be provided in the same format as that
             of the experimental_domain; i.e., of shape (2, d), where d is
             the dimensionality of the input space.
+        ppd : int
+            The number of points per dimension to use for the dream.
 
         Returns
         -------
         EasySingleTaskGP
         """
 
-        if not ((experiment is not None) ^ (domain is not None)):
-            raise ValueError("Provide either experiment or bounds, not both")
-
-        if experiment is not None:
-            X = experiment.get_dense_coordinates(ppd=ppd)
-        else:
-            X = get_coordinates(ppd, domain)
-
+        X = get_coordinates(ppd, domain)
         Y = self.sample(X, samples=1)
         Y = Y.reshape(-1, 1)
 

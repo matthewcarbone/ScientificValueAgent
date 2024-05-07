@@ -1,0 +1,5 @@
+get_: sva.policy.RandomPolicy
+
+defaults:
+  - _self_
+  - common.yaml

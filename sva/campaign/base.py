@@ -1,11 +1,12 @@
-from abc import ABC, abstractmethod, abstractproperty
+from pathlib import Path
 
 import numpy as np
-from attrs import define, field, frozen
+from attrs import define, field
 from attrs.validators import ge, instance_of, optional
 
+from sva.logger import logger
 from sva.monty.json import MSONable
-from sva.utils import seed_everything
+from sva.utils import Timer, seed_everything
 
 
 @define
@@ -59,7 +60,7 @@ class CampaignData(MSONable):
             self.Y = Y
 
     def update_metadata(self, new_metadata):
-        self.metadata.append(new_metadata)
+        self.metadata.extend(new_metadata)
 
     def update(self, X, Y, metadata=None):
         """Helper method for updating the data attribute with new data.
@@ -106,7 +107,7 @@ class CampaignData(MSONable):
         else:
             raise NotImplementedError(f"Unknown provided protocol {protocol}")
 
-        d = {"experiment": experiment.name, "protocol": protocol}
+        d = {"experiment": experiment.name, "policy": protocol}
         self.update(X, experiment(X), metadata=[d] * X.shape[0])
 
     def __eq__(self, exp):
@@ -130,7 +131,7 @@ class CampaignData(MSONable):
         return True
 
 
-@define
+@define(kw_only=True)
 class Campaign(MSONable):
     """Core executor for running an experiment.
 
@@ -143,21 +144,50 @@ class Campaign(MSONable):
     """
 
     seed = field(validator=[instance_of(int), ge(0)])
+    experiment = field()
+    policy = field()
+    save_dir = field(default=None, validator=optional(instance_of(str)))
     data = field(factory=lambda: CampaignData())
 
-    def run(self, experiment, policy):
+    def _log_experiment_prime_data(self, experiment):
+        logger.debug(
+            f"Experiment: {experiment.name} primed with {self.data.N} data "
+            "points"
+        )
+
+    @property
+    def name(self):
+        return f"{self.experiment.name}_{self.policy.name}_{self.seed}"
+
+    def _run(self):
         seed_everything(self.seed)
+        logger.debug(f"Seeded {self.name} with seed={self.seed}")
 
         # The first step is always to prime the data with points selected
         # by some procedure, usually random or Latin Hypercube
-        self.data.prime(experiment, **policy.prime_kwargs)
+        self.data.prime(self.experiment, **self.policy.prime_kwargs)
+        self._log_experiment_prime_data(self.experiment)
 
         # Then the simulation is run
         terminate = False
-        while self.data.N < policy.n_max and not terminate:
+        step = 0
+        while self.data.N < self.policy.n_max and not terminate:
             # The policy returns a state at every step
             # The data is also updated in-place
-            state = policy.step(experiment, self.data)
+            with Timer() as timer:
+                state = self.policy.step(self.experiment, self.data)
+            logger.debug(f"Step {step:03} done in {timer.dt:.02f} s")
 
             # Determine early-stopping criteria
             terminate = state.terminate
+
+            step += 1
+
+    def run(self):
+        with Timer() as timer:
+            self._run()
+        logger.success(f"[{timer.dt:.02f} s] Done with id={self.name}")
+        if self.save_dir is not None:
+            name = Path(self.save_dir) / f"{self.name}.json"
+            self.save(name, json_kwargs={"indent": 4, "sort_keys": True})
+            logger.debug(f"{self.name} saved to {name}")

@@ -1,21 +1,10 @@
 _target_: sva.policy.FixedPolicy
 
-n_max: 100
-prime_kwargs:
-  protocol: random
-  n: 3
-model_fitting_method: fit_mll
-model_fitting_kwargs: null
-acquisition_function: "UCB"
-acquisition_function_kwargs:
-  beta: 10.0
-optimize_kwargs:
-  q: 1
-  num_restarts: 20
-  raw_samples: 100
-save_acquisition_function: false
-save_model: false
+acquisition_function:
+  _target_: botorch.acquisition.analytic.ExpectedImprovement
+  _partial_: true
 
 defaults:
   - _self_
+  - common.yaml
   - /models@model_factory: single_task_gp.yaml

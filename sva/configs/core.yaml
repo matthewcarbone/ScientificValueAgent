@@ -1,0 +1,18 @@
+defaults:
+  - _self_
+  - experiment: ???
+  - policy: fixed.yaml
+  - paths: default.yaml
+  - hydra: default.yaml
+
+# name of the runs
+name: misc
+
+# Seed for random number generators in pytorch, numpy and python.random
+# this seed applies to everything and is propogated through other experiments
+# such as in policy performance tuning
+seed: 123
+
+# Set the logging mode (this is the minimum level that will be logged)
+logging: info
+

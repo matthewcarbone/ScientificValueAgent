@@ -1,5 +1,5 @@
 from copy import deepcopy
-from warnings import warn
+from warnings import catch_warnings, warn
 
 import numpy as np
 import torch
@@ -83,12 +83,13 @@ class CampaignParameters(MSONable):
                     "If train_protocol is a str, must be 'fit_mll' or "
                     "'fit_Adam'"
                 )
-        keys = list(value.keys())
-        if "method" not in keys or "kwargs" not in keys:
-            raise KeyError(
-                "Either method or kwargs was not found in "
-                "train_protocol keys. Both are required."
-            )
+        if isinstance(value, dict):
+            keys = list(value.keys())
+            if "method" not in keys or "kwargs" not in keys:
+                raise KeyError(
+                    "Either method or kwargs was not found in "
+                    "train_protocol keys. Both are required."
+                )
 
     optimize_acqf_kwargs = field(
         default=None, validator=instance_of((dict, type(None)))
@@ -108,6 +109,11 @@ class CampaignParameters(MSONable):
 
     svf = field(default=None)
 
+    save_models = field(default=False, validator=instance_of(bool))
+    save_acquisition_functions = field(
+        default=False, validator=instance_of(bool)
+    )
+
     def _set_acquisition_function(self):
         if self.acquisition_function is not None:
             return
@@ -117,7 +123,8 @@ class CampaignParameters(MSONable):
             f"{self.acquisition_function}"
         )
 
-    def __str__(self):
+    @property
+    def acqf_key(self):
         """Gets a simple string representation of the parameters. This actually
         abstracts away all other attributes except the acquisition function,
         which is of primary interest when running a campaign."""
@@ -129,8 +136,9 @@ class CampaignParameters(MSONable):
             return f"UCB-{beta:.01f}"
         raise ValueError("Unknown acquisition function method")
 
-    def __repr__(self):
-        return self.__str__()
+    @property
+    def name(self):
+        return self.acqf_key
 
     def _set_train_protocol(self):
         if self.train_protocol is None:
@@ -201,6 +209,44 @@ class CampaignParameters(MSONable):
             return False
         return self.get_hash() == x.get_hash()
 
+    @classmethod
+    def from_standard_testing_array(cls, betas, use_EI, **kwargs):
+        """Gets a standard testing array consisting of EI and a variety of
+        choices for UCB."""
+
+        parameters = []
+
+        with catch_warnings(record=True) as _:
+            if use_EI:
+                acqf = {"method": "EI", "kwargs": None}
+                klass = cls(acquisition_function=acqf, **kwargs)
+                parameters.append(klass)
+            for beta in betas:
+                acqf = {"method": "UCB", "kwargs": {"beta": beta}}
+                klass = cls(acquisition_function=acqf, **kwargs)
+                parameters.append(klass)
+        if len(parameters) == 0:
+            raise RuntimeError("No parameters!")
+        return parameters
+
+    @classmethod
+    def from_simple(cls, acqf, **kwargs):
+        """An extremely simple initializer that understands a variety of
+        inputs for acqf. Essentially, acqf specifies the acquisition function
+        in one of the following ways. If acqf is 'EI', we use EI. If acqf is
+        a float, we use UCB with the provided value as beta."""
+
+        if acqf == "EI":
+            acqf = {"method": "EI", "kwargs": None}
+        else:
+            acqf = float(acqf)
+            acqf = {"method": "UCB", "kwargs": {"beta": acqf}}
+
+        with catch_warnings(record=True) as _:
+            klass = cls(acquisition_function=acqf, **kwargs)
+
+        return klass
+
 
 class CampaignBaseMixin:
     """This class acts as a mixin for experiments in which there is a single
@@ -270,13 +316,18 @@ class CampaignBaseMixin:
             if kwargs is None:
                 kwargs = {}
             kwargs["best_f"] = Y.max()
-        return ask(
+        state = ask(
             gp.model,
             acquisition_function,
             bounds=self.properties.experimental_domain,
             acquisition_function_kwargs=kwargs,
             optimize_acqf_kwargs=optimize_acqf_kwargs,
         )
+
+        if not parameters.save_acquisition_functions:
+            state.pop("acquisition_function")
+
+        return state
 
     def _optimize_gp(self, parameters, gp, d):
         # Optionally, we can run an additional optimization step on the GP
@@ -293,7 +344,6 @@ class CampaignBaseMixin:
         self,
         n,
         parameters=None,
-        svf=None,
         pbar=True,
         additional_experiments=True,
     ):
@@ -322,7 +372,7 @@ class CampaignBaseMixin:
         # The for loop runs over the maximum possible number of experiments
         for ii in tqdm(range(loops), disable=not pbar):
             X, Y, Yvar = self._get_data()
-            Y = self._svf_transform(svf, X, Y, Yvar)
+            Y = self._svf_transform(parameters.svf, X, Y, Yvar)
             gp = self._get_gp(parameters, X, Y, Yvar)
             self._fit(parameters, gp)
             state = self._ask(parameters, gp, Y)
@@ -334,7 +384,7 @@ class CampaignBaseMixin:
                 "iteration": ii,
                 "N": X.shape[0],
                 "state": state,
-                "easy_gp": deepcopy(gp),
+                "easy_gp": deepcopy(gp) if parameters.save_models else None,
             }
 
             d = self._optimize_gp(parameters, gp, d)
@@ -346,7 +396,7 @@ class CampaignBaseMixin:
 
 class MultimodalCampaignMixin(CampaignBaseMixin):
     def _svf_transform(self, svf, X, Y, Yvar, task_feature):
-        if svf:
+        if svf is not None:
             new_target = np.empty(shape=(Y.shape[0], 1))
             # Assign each of the values based on the individual modal
             # experiments. The GP should take care of the rest
@@ -382,7 +432,7 @@ class MultimodalCampaignMixin(CampaignBaseMixin):
         if is_EI(acquisition_function):
             acquisition_function_kwargs["best_f"] = Y[:, modality_index].max()
 
-        return ask(
+        state = ask(
             gp.model,
             acquisition_function,
             bounds=self.properties.experimental_domain,
@@ -390,11 +440,15 @@ class MultimodalCampaignMixin(CampaignBaseMixin):
             optimize_acqf_kwargs=optimize_acqf_kwargs,
         )
 
+        if not parameters.save_acquisition_functions:
+            state.pop("acquisition_function")
+
+        return state
+
     def run(
         self,
         n,
         parameters=None,
-        svf=None,
         pbar=True,
         additional_experiments=True,
     ):
@@ -416,7 +470,7 @@ class MultimodalCampaignMixin(CampaignBaseMixin):
         # The for loop runs over the maximum possible number of experiments
         for ii in tqdm(range(loops), disable=not pbar):
             X, Y, Yvar = self._get_data()
-            Y = self._svf_transform(svf, X, Y, Yvar, task_feature)
+            Y = self._svf_transform(parameters.svf, X, Y, Yvar, task_feature)
 
             if Y.ndim == 1:
                 Y = Y.reshape(-1, 1)
@@ -442,7 +496,7 @@ class MultimodalCampaignMixin(CampaignBaseMixin):
                 "iteration": ii,
                 "N": X.shape[0],
                 "state": state,
-                "easy_gp": deepcopy(gp),
+                "easy_gp": deepcopy(gp) if parameters.save_models else None,
             }
 
             d = self._optimize_gp(parameters, gp, d)

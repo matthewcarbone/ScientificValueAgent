@@ -1,27 +1,16 @@
+import datetime
 import hashlib
 import json
 import random
-from importlib import import_module
 from itertools import product
-from os import environ
 from time import perf_counter
-from warnings import warn
 
-
-try:
-    import matplotlib as mpl
-    import matplotlib.pyplot as plt
-    from mpl_toolkits import axes_grid1
-
-    MPL_INSTALLED = True
-except ImportError:
-    mpl = None
-    plt = None
-    axes_grid1 = None
-    MPL_INSTALLED = False
 import numpy as np
 import torch
 from scipy.spatial import distance_matrix
+from scipy.stats import qmc
+
+GLOBAL_STATE = {"seed": None}
 
 
 class Timer:
@@ -45,6 +34,9 @@ def seed_everything(seed):
         torch.manual_seed(seed)
         random.seed(seed)
         np.random.seed(seed)
+
+        # The scipy seed somehow needs to be seeded separately
+        GLOBAL_STATE["seed"] = seed
 
 
 def random_indexes(array_size, samples=10):
@@ -145,6 +137,29 @@ def get_random_points(domain, n=1):
     return scale_by_domain(X, domain)
 
 
+def get_latin_hypercube_points(domain, n=5):
+    """Gets a random selection of points in the provided domain using the
+    Latin Hypercube sampling algorithm.
+
+    Parameters
+    ----------
+    domain : np.ndarray
+        The domain to scale to. Should be of shape (2, d).
+    n : int
+        Total number of points.
+
+    Returns
+    -------
+    np.ndarray
+    """
+
+    sampler = qmc.LatinHypercube(
+        d=domain.shape[1], optimization="random-cd", seed=GLOBAL_STATE["seed"]
+    )
+    sample = sampler.random(n=n)
+    return qmc.scale(sample, *domain)
+
+
 def next_closest_raster_scan_point(
     proposed_points, observed_points, possible_coordinates, eps=1e-8
 ):
@@ -197,111 +212,6 @@ def next_closest_raster_scan_point(
     return np.array(actual_points)
 
 
-def get_function_from_signature(signature):
-    """Parases a function of the form module.submodule:function to import
-    and get the actual function as defined.
-
-    Parameters
-    ----------
-    signature : str
-
-    Returns
-    -------
-    callable
-    """
-
-    module, function = signature.split(":")
-    module = import_module(module)
-    return getattr(module, function)
-
-
-def set_mpl_defaults(labelsize=12, dpi=250):
-    if not MPL_INSTALLED:
-        warn("Matplotlib is not installed")
-        return
-    mpl.rcParams["mathtext.fontset"] = "stix"
-    mpl.rcParams["font.family"] = "STIXGeneral"
-    if environ.get("DISABLE_LATEX"):
-        mpl.rcParams["text.usetex"] = False
-    else:
-        mpl.rcParams["text.usetex"] = True
-    plt.rc("xtick", labelsize=labelsize)
-    plt.rc("ytick", labelsize=labelsize)
-    plt.rc("axes", labelsize=labelsize)
-    mpl.rcParams["figure.dpi"] = dpi
-    plt.rcParams["figure.figsize"] = (3, 2)
-
-
-def set_mpl_grids(
-    ax,
-    minorticks=True,
-    grid=False,
-    bottom=True,
-    left=True,
-    right=True,
-    top=True,
-):
-    if not MPL_INSTALLED:
-        warn("Matplotlib is not installed")
-        return
-    if minorticks:
-        ax.minorticks_on()
-
-    ax.tick_params(
-        which="both",
-        direction="in",
-        bottom=bottom,
-        left=left,
-        top=top,
-        right=right,
-    )
-
-    if grid:
-        ax.grid(which="minor", alpha=0.2, linestyle=":")
-        ax.grid(which="major", alpha=0.5)
-
-
-def legend_without_duplicate_labels(ax, **kwargs):
-    handles, labels = ax.get_legend_handles_labels()
-    unique = [
-        (h, _label)
-        for i, (h, _label) in enumerate(zip(handles, labels))
-        if _label not in labels[:i]
-    ]
-    ax.legend(*zip(*unique), **kwargs)
-
-
-def add_colorbar(
-    im, aspect=10, pad_fraction=0.5, integral_ticks=None, **kwargs
-):
-    """Add a vertical color bar to an image plot."""
-
-    if not MPL_INSTALLED:
-        warn("Matplotlib is not installed")
-        return
-
-    # https://stackoverflow.com/questions/18195758/set-matplotlib-colorbar-size-to-match-graph
-    divider = axes_grid1.make_axes_locatable(im.axes)
-    width = axes_grid1.axes_size.AxesY(im.axes, aspect=1.0 / aspect)
-    pad = axes_grid1.axes_size.Fraction(pad_fraction, width)
-    current_ax = plt.gca()
-    cax = divider.append_axes("right", size=width, pad=pad)
-    plt.sca(current_ax)
-    cbar = im.axes.figure.colorbar(im, cax=cax, **kwargs)
-    if integral_ticks is not None:
-        L = len(integral_ticks)
-        cbar.set_ticks(
-            [
-                cbar.vmin
-                + (cbar.vmax - cbar.vmin) / L * ii
-                - (cbar.vmax - cbar.vmin) / L / 2.0
-                for ii in range(1, L + 1)
-            ]
-        )
-        cbar.set_ticklabels(integral_ticks)
-    return cbar
-
-
 def save_json(d, path):
     with open(path, "w") as outfile:
         json.dump(d, outfile, indent=4, sort_keys=True)
@@ -328,3 +238,7 @@ def get_hash(s):
     s = s.encode("utf8")
     h.update(s)
     return h.hexdigest()
+
+
+def get_dt_now():
+    return datetime.datetime.now().strftime("%y%m%d-%H%M%S")

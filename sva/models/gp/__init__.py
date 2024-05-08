@@ -2,12 +2,12 @@ from sva.models.gp.gp import (
     EasyFixedNoiseGP,
     EasyMultiTaskGP,
     EasySingleTaskGP,
-    get_train_protocol,
+    fit_EasyGP_mll,
 )
 
 __all__ = [
     "EasySingleTaskGP",
     "EasyMultiTaskGP",
     "EasyFixedNoiseGP",
-    "get_train_protocol",
+    "fit_EasyGP_mll",
 ]

@@ -501,11 +501,8 @@ class MSONable:
 
         # Save the pickle file if we have anything to save from the name_object_map
         if name_object_map is not None:
-            pickle.dump(
-                name_object_map,
-                open(pickle_path, "wb"),
-                **pickle_kwargs,
-            )
+            with open(pickle_path, "wb") as f:
+                pickle.dump(name_object_map, f, **pickle_kwargs)
 
     @classmethod
     def load(cls, file_path):

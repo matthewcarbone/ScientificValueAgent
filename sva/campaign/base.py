@@ -186,7 +186,7 @@ class Campaign(MSONable):
     def run(self):
         with Timer() as timer:
             self._run()
-        logger.success(f"[{timer.dt:.02f} s] Done with id={self.name}")
+        logger.success(f"[{timer.dt:.02f} s] {self.name}")
         if self.save_dir is not None:
             name = Path(self.save_dir) / f"{self.name}.json"
             self.save(name, json_kwargs={"indent": 4, "sort_keys": True})

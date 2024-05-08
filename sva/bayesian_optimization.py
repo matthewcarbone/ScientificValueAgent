@@ -87,3 +87,13 @@ def parse_acquisition_function(acqf):
     if not isinstance(acqf, partial):
         raise ValueError("acqf is not dict or string, must be partial")
     return acqf, "ExpectedImprovement" in str(acqf.func)
+
+
+def get_acquisition_function_name(acqf):
+    """Gets a string representation of the acquisition function provided."""
+    if isinstance(acqf, dict):
+        return acqf["acquisition_function"]
+    elif isinstance(acqf, str):
+        return acqf
+    # Otherwise, it's some sort of partial object
+    return str(acqf.func.__name__)

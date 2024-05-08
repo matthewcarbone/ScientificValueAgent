@@ -29,6 +29,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
 
+import os
 import sys
 from contextlib import contextmanager
 from copy import copy
@@ -106,16 +107,64 @@ def configure_loggers(
         logger.add(lambda _: warn("DUMMY ERROR"), level="ERROR")
 
 
-def configure_loggers2(level, **kwargs):
+def add_logger(sink, levels):
     """Quickly configure the loggers up to the level provided."""
 
-    level = level.upper()
-    levels = ["DEBUG"] + NO_DEBUG_LEVELS
-    levels = levels[::-1]
-    index = levels.index(level)
-    levels = levels[: index + 1]
-    levels = levels[::-1]
-    configure_loggers(levels=levels, **kwargs)
+    for level in levels:
+        if isinstance(sink, (str, os.PathLike)):
+            logger.add(
+                sink,
+                filter=generic_filter([level]),
+                format=format_mapping[level],
+                colorize=False,
+                backtrace=True,
+                enqueue=True,
+            )
+        else:
+            logger.add(
+                sink,
+                filter=generic_filter([level]),
+                format=format_mapping[level],
+                colorize=True,
+                backtrace=True,
+                enqueue=True,
+            )
+
+
+def logger_setup(state, d):
+    """Sets up the logger for SVA. There are a few modes of operation:
+    state==debug does the following:
+    - Logs the debug stream to d/log.debug
+    - Logs the stdout stream to d/log.out (info, success)
+    - Logs the stderr stream to d/log.err
+    - Logs everything to the console as well
+    state==normal has different behavior
+    - Does not log the debug stream
+    - Logs the stdout stream to d/log.out (info, success)
+    - Logs the stderr stream to d/log.err
+    - Logs success, error and critical to the console; omits warnings
+    state==no_console completely disables the console logger but leaves the
+    rest in normal mode. This is useful for when using multiprocessing or
+    the hydra joblib launcher with the verbosity>0
+    """
+
+    logger.remove(None)
+    d = Path(d)
+
+    if state == "debug":
+        add_logger(sys.stdout, ["DEBUG", "INFO", "SUCCESS"])
+        add_logger(sys.stderr, ["WARNING", "ERROR", "CRITICAL"])
+        add_logger(d / "log.debug", ["DEBUG"])
+    elif state == "no_console":
+        pass
+    elif state == "normal":
+        add_logger(sys.stdout, ["SUCCESS"])
+        add_logger(sys.stderr, ["ERROR", "CRITICAL"])
+    else:
+        raise ValueError(f"unknown logging state {state}")
+
+    add_logger(d / "log.out", ["INFO", "SUCCESS"])
+    add_logger(d / "log.err", ["WARNING", "ERROR", "CRITICAL"])
 
 
 def logger_configure_debug_mode():

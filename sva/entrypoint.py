@@ -3,13 +3,14 @@ from hydra.utils import instantiate
 
 from sva import __version__
 from sva.campaign import Campaign
-from sva.logger import configure_loggers2, log_warnings
+from sva.logger import log_warnings, logger_setup
 
 
 @log_warnings
 def run(config):
     """Runs the campaign provided the experiment and policy."""
 
+    logger_setup(config.logging, config.paths.output_dir)
     experiment = instantiate(config.experiment, _convert_="partial")
     policy = instantiate(config.policy, _convert_="partial")
     campaign = Campaign(
@@ -31,7 +32,6 @@ def hydra_main(config):
     config : omegaconf.DictConfig
     """
 
-    configure_loggers2(config.logging, log_directory=config.paths.output_dir)
     run(config)
 
 

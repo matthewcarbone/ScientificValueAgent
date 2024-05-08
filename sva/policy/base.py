@@ -7,7 +7,10 @@ from attrs import define, field
 from attrs.validators import ge, instance_of
 from botorch.optim import optimize_acqf
 
-from sva.bayesian_optimization import parse_acquisition_function
+from sva.bayesian_optimization import (
+    get_acquisition_function_name,
+    parse_acquisition_function,
+)
 from sva.logger import logger
 from sva.monty.json import MSONable
 
@@ -98,6 +101,11 @@ class FixedPolicy(Policy):
 
     def __attrs_post_init__(self):
         logger.debug(f"{self.name} initialized as: {self}")
+
+    @property
+    def name(self):
+        acqf = get_acquisition_function_name(self.acquisition_function)
+        return f"{self.__class__.__name__}-{acqf}"
 
     def step(self, experiment, data):
         model = self.model_factory(data.X, data.Y)

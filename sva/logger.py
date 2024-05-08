@@ -33,6 +33,7 @@ import sys
 from contextlib import contextmanager
 from copy import copy
 from functools import wraps
+from pathlib import Path
 from warnings import catch_warnings, warn
 
 from loguru import logger
@@ -63,6 +64,7 @@ format_mapping = {
 
 def configure_loggers(
     levels=LOGGER_STATE["levels"],
+    log_directory=None,
     python_standard_warnings=LOGGER_STATE["python_standard_warnings"],
 ):
     """Configures the ``loguru`` loggers. Note that the loggers are initialized
@@ -80,17 +82,40 @@ def configure_loggers(
 
     for level in levels:
         logger.add(
-            sys.stdout
-            if level in ["DEBUG", "INFO", "SUCCESS", "WARNING"]
-            else sys.stderr,
+            sys.stdout if level in ["DEBUG", "INFO", "SUCCESS"] else sys.stderr,
             colorize=True,
             filter=generic_filter([level]),
             format=format_mapping[level],
+        )
+        if log_directory is None:
+            continue
+        p = Path(log_directory)
+        logger.add(
+            p / "log.out"
+            if level in ["DEBUG", "INFO", "SUCCESS"]
+            else p / "log.err",
+            level=level,
+            format=format_mapping[level],
+            colorize=False,
+            backtrace=True,
+            diagnose=True,
         )
 
     if python_standard_warnings:
         logger.add(lambda _: warn("DUMMY WARNING"), level="WARNING")
         logger.add(lambda _: warn("DUMMY ERROR"), level="ERROR")
+
+
+def configure_loggers2(level, **kwargs):
+    """Quickly configure the loggers up to the level provided."""
+
+    level = level.upper()
+    levels = ["DEBUG"] + NO_DEBUG_LEVELS
+    levels = levels[::-1]
+    index = levels.index(level)
+    levels = levels[: index + 1]
+    levels = levels[::-1]
+    configure_loggers(levels=levels, **kwargs)
 
 
 def logger_configure_debug_mode():
@@ -159,16 +184,37 @@ def logger_level(*args, **kwargs):
         configure_loggers(**state)
 
 
+class CustomWarning:
+    def __init__(self, w):
+        self.w = w
+
+    @property
+    def name(self):
+        return self.w.category.__name__
+
+    @property
+    def message(self):
+        return str(self.w.message)
+
+    @property
+    def all_vars(self):
+        return vars(self.w)
+
+    def __str__(self):
+        return f"{self.name}: {self.message} | {self.all_vars}"
+
+    def __hash__(self):
+        return hash(self.__str__())
+
+
 def log_warnings(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         with catch_warnings(record=True, action="once") as w:
             output = f(*args, **kwargs)
-        for warning in w:
-            klass = warning.category.__name__
-            message = str(warning.message)
-            v = vars(warning)
-            logger.warning(f"{klass}: {message} | {v}")
+        w = [CustomWarning(ww) for ww in w]
+        for warning in set(w):
+            logger.warning(str(warning))
         return output
 
     return wrapper

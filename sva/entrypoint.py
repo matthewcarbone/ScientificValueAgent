@@ -3,7 +3,7 @@ from hydra.utils import instantiate
 
 from sva import __version__
 from sva.campaign import Campaign
-from sva.logger import log_warnings, logger, logger_configure_debug_mode
+from sva.logger import configure_loggers2, log_warnings
 
 
 @log_warnings
@@ -31,13 +31,7 @@ def hydra_main(config):
     config : omegaconf.DictConfig
     """
 
-    if config.debug:
-        logger_configure_debug_mode()
-
-    logger.info(f"Running sva version {__version__}")
-    logger.info(f"name set to: {config.name}")
-    logger.info(f"seed set to: {config.seed}")
-
+    configure_loggers2(config.logging, log_directory=config.paths.output_dir)
     run(config)
 
 

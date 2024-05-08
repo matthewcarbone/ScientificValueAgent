@@ -13,13 +13,6 @@ name: misc
 # such as in policy performance tuning
 seed: 123
 
-# Debugging mode
-debug: false
-
-# the number of replications over randomly initializing the experiment
-# starting points
-replicas: 10
-
-# the number of parallel jobs to run
-n_jobs: 12
+# Set the logging mode (this is the minimum level that will be logged)
+logging: info
 

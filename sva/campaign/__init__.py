@@ -1,3 +1,3 @@
-from .base import Campaign
+from .base import Campaign, CampaignData
 
-__all__ = ["Campaign"]
+__all__ = ["Campaign", "CampaignData"]

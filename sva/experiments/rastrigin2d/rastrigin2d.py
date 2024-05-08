@@ -1,14 +1,11 @@
 import numpy as np
 from attrs import define, field
 
-from sva.monty.json import MSONable
-
-from ..base import ExperimentMixin, ExperimentProperties
-from ..campaign import CampaignBaseMixin
+from ..base import Experiment, ExperimentProperties
 
 
 @define
-class Rastrigin2d(ExperimentMixin, CampaignBaseMixin, MSONable):
+class Rastrigin2d(Experiment):
     properties = field(
         factory=lambda: ExperimentProperties(
             n_input_dim=2,
@@ -21,5 +18,9 @@ class Rastrigin2d(ExperimentMixin, CampaignBaseMixin, MSONable):
     def _truth(self, X):
         x = X[:, 0]
         y = X[:, 1]
-        res = (10*2) + (x**2 - (10*np.cos(2*np.pi*x))) + (y**2 - (10*np.cos(2*np.pi*y)))
+        res = (
+            (10 * 2)
+            + (x**2 - (10 * np.cos(2 * np.pi * x)))
+            + (y**2 - (10 * np.cos(2 * np.pi * y)))
+        )
         return res.reshape(-1, 1)

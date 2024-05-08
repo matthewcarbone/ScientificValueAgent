@@ -10,8 +10,7 @@ class Rastrigin2d(Experiment):
         factory=lambda: ExperimentProperties(
             n_input_dim=2,
             n_output_dim=1,
-            valid_domain=None,
-            experimental_domain=np.array([[-1.0, 1.0], [-1.0, 1.0]]).T,
+            domain=np.array([[-1.0, 1.0], [-1.0, 1.0]]).T,
         )
     )
 

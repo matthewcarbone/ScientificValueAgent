@@ -45,9 +45,21 @@ class Experiment(ABC, MSONable):
     the class. Second and most importantly, a frozen class called
     ExperimentProperties. This contains all of the required parameters for
     the experiment: n_input_dim, n_output_dim and the valid domain (which
-    can be None)."""
+    can be None). The provided noise corresponds to the standard deviation of
+    Gaussian random noise applied to every element of the output. By default
+    this is zero."""
 
     metadata = field(factory=dict)
+    noise = field(default=0.0)
+
+    @noise.validator
+    def validate_noise(self, _, value):
+        if isinstance(value, (float, int)):
+            assert value >= 0.0
+        elif callable(value):
+            pass
+        else:
+            raise ValueError("noise must be float/int >= 0 or callable")
 
     @abstractproperty
     def properties(self): ...
@@ -62,19 +74,6 @@ class Experiment(ABC, MSONable):
     @property
     def name(self):
         return self.__class__.__name__
-
-    # Passthroughs to the data
-    @property
-    def X(self):
-        return self.data.X
-
-    @property
-    def Y(self):
-        return self.data.Y
-
-    @property
-    def N(self):
-        return self.data.N
 
     @property
     def n_input_dim(self):
@@ -176,18 +175,26 @@ class Experiment(ABC, MSONable):
         imshow.
         """
 
-        if self.properties.n_input_dim != 2:
+        if self.n_input_dim != 2:
             raise NotImplementedError("Only implemented for 2d inputs.")
 
-        x0 = self.properties.domain[0, 0]
-        x1 = self.properties.domain[1, 0]
+        x0 = self.domain[0, 0]
+        x1 = self.domain[1, 0]
 
-        y0 = self.properties.domain[0, 1]
-        y1 = self.properties.domain[1, 1]
+        y0 = self.domain[0, 1]
+        y1 = self.domain[1, 1]
 
         return [x0, x1, y0, y1]
 
     def __call__(self, x):
         """The result of the experiment."""
 
-        return self.truth(x)
+        y = self.truth(x)
+        if isinstance(self.noise, (float, int)) and self.noise > 0.0:
+            dy = np.random.normal(loc=0.0, scale=self.noise, size=y.shape)
+            return y + dy
+        elif callable(self.noise):
+            scale = self.noise(x)
+            dy = np.random.normal(loc=0.0, scale=scale, size=y.shape)
+            return y + dy
+        return y

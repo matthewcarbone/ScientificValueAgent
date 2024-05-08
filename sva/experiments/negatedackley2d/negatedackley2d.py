@@ -10,8 +10,7 @@ class NegatedAckley2d(Experiment):
         factory=lambda: ExperimentProperties(
             n_input_dim=2,
             n_output_dim=1,
-            valid_domain=None,
-            experimental_domain=np.array([[-5.0, 5.0], [-5.0, 5.0]]).T,
+            domain=np.array([[-5.0, 5.0], [-5.0, 5.0]]).T,
         )
     )
 

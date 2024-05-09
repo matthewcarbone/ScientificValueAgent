@@ -1,5 +1,4 @@
 from collections import defaultdict
-from functools import cache
 from pathlib import Path
 
 from yaml import safe_load
@@ -13,12 +12,8 @@ def load_hydra_result(path, load_configs=False, load_logs=False):
     from that."""
 
     d = path.parent
-    _, _, seed = path.stem.split("_")
 
-    result = {
-        "experiment": load_anything(path),
-        "seed": seed,
-    }
+    result = {"campaign": load_anything(path)}
 
     if load_configs:
         result["config"] = safe_load(open(d / ".hydra" / "config.yaml", "r"))
@@ -42,7 +37,6 @@ def load_hydra_result(path, load_configs=False, load_logs=False):
     return result
 
 
-@cache
 def read_data(path, load_configs=False, load_logs=False):
     """Reads all results into memory recursively from the provided path.
     Searches for all files matching the .json pattern and loads a re-hydrated
@@ -57,13 +51,12 @@ def read_data(path, load_configs=False, load_logs=False):
     # We know that in that directory, there is a hydra config file as well
     paths = list(Path(path).rglob("*.json"))
 
-    # Ensure everything is unique
-    if len(set([xx.stem for xx in paths])) != len(paths):
-        raise RuntimeError("Non-unique file names are ambiguous")
-
     for p in paths:
-        experiment, policy, _ = p.stem.split("_")
         r = load_hydra_result(p, load_configs=load_configs, load_logs=load_logs)
-        results[experiment][policy].append(r)
+        experiment_name = r["campaign"].experiment.name
+        policy_name = r["campaign"].policy.name
+        if not load_configs and not load_logs:
+            r = r["campaign"]
+        results[experiment_name][policy_name].append(r)
 
     return results

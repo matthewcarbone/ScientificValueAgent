@@ -8,10 +8,7 @@ from attrs import define, field
 from attrs.validators import ge, instance_of
 from botorch.optim import optimize_acqf
 
-from sva.bayesian_optimization import (
-    get_acquisition_function_name,
-    parse_acquisition_function,
-)
+from sva.bayesian_optimization import parse_acquisition_function
 from sva.logger import logger
 from sva.monty.json import MSONable
 
@@ -167,8 +164,42 @@ class FixedPolicy(RequiresBayesOpt):
 
     @property
     def name(self):
-        acqf = get_acquisition_function_name(self.acquisition_function)
-        return f"{self.__class__.__name__}-{acqf}"
+        acqf = self.acquisition_function
+
+        if isinstance(acqf, dict):
+            acqf_kwargs = acqf["kwargs"]
+            acqf = acqf["acquisition_function"]
+            if "EI" in acqf:
+                beta = None
+            else:
+                beta = acqf_kwargs["beta"]
+
+        elif isinstance(acqf, str):
+            if "EI" in acqf:
+                beta = None
+            else:
+                acqf, beta = acqf.split("-")
+
+        elif isinstance(acqf, partial):
+            if "qExpectedImprovement" == acqf.func.__name__:
+                beta = None
+                acqf = "qEI"
+            elif "ExpectedImprovement" == acqf.func.__name__:
+                beta = None
+                acqf = "EI"
+            elif "qUpperConfidenceBound" == acqf.func.__name__:
+                beta = acqf.keywords["beta"]
+                acqf = "qUCB"
+            elif "UpperConfidenceBound" == acqf.func.__name__:
+                beta = acqf.keywords["beta"]
+                acqf = "UCB"
+            else:
+                raise ValueError(f"Invalid acqf {acqf}")
+
+        if beta is None:
+            return acqf
+        beta = float(beta)
+        return f"{acqf}-{beta:.02f}"
 
     def _get_acqf_at_state(self, experiment, data):
         """Gets the acquisition function on the current state, given the

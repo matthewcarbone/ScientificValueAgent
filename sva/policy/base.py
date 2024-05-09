@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from copy import deepcopy
+from functools import partial
 
 import numpy as np
 import torch
@@ -56,6 +57,9 @@ class Policy(ABC, MSONable):
 
         ...
 
+    def __attrs_post_init__(self):
+        logger.debug(f"{self.name} initialized as: {self}")
+
     @property
     def name(self):
         return self.__class__.__name__
@@ -75,48 +79,59 @@ class RandomPolicy(Policy):
 
 
 @define(kw_only=True)
-class FixedPolicy(Policy):
-    """Executes a fixed-policy Bayesian Optimization experiment. Requires a
-    model factory which is re-fit at every step of the optimization. The model
-    factory should take arguments for X and Y, and should have the fit() method
-    defined on it.
-
-    Parameters
-    ----------
-    model_factory : callable
-        Callable that produces the model as a function of X and Y.
-    model_fitting_function : callable
-        Function used for fitting the model. Takes an EasyGP object as input
-        (or at least one with the model attribute).
-    """
+class RequiresBayesOpt(Policy):
+    """Defines a few methods that are required for non-trivial policies.
+    In particular, this class defines the step method, the _get_acqf_at_state
+    method and a variety of required keyword-only parameters required to
+    make the step work."""
 
     model_factory = field()
-    acquisition_function = field()
-    optimize_kwargs = field()
+
+    @model_factory.validator
+    def validate_model_factory(self, _, value):
+        if not isinstance(value, partial):
+            raise ValueError(
+                f"Provided model_factory: {value} must be of type partial"
+            )
+
+    optimize_kwargs = field(validator=instance_of(dict))
+
     model_fitting_function = field()
+
+    @model_fitting_function.validator
+    def validate_model_fitting_function(self, _, value):
+        if not isinstance(value, partial):
+            raise ValueError(
+                f"Provided model_fitting_function {value} must be of type "
+                "partial"
+            )
+
     save_acquisition_function = field(
         default=False, validator=instance_of(bool)
     )
     save_model = field(default=False, validator=instance_of(bool))
 
-    def __attrs_post_init__(self):
-        logger.debug(f"{self.name} initialized as: {self}")
+    @abstractmethod
+    def _get_acqf_at_state(self, experiment, data): ...
 
-    @property
-    def name(self):
-        acqf = get_acquisition_function_name(self.acquisition_function)
-        return f"{self.__class__.__name__}-{acqf}"
+    @abstractmethod
+    def _get_metadata(self, experiment, data): ...
 
     def step(self, experiment, data):
+        # Get the model
         model = self.model_factory(data.X, data.Y)
-        # TODO: eventually we want to pass Yvar too
 
         # Fit the model
         fit_results = self.model_fitting_function(model)
         logger.debug(f"Model fit, output is: {fit_results}")
 
+        # Important step to get the acquisition function as a function of
+        # the current step, experiment and data
+        acquisition_function = self._get_acqf_at_state(experiment, data)
+        logger.debug(f"Acquisition function is: {acquisition_function}")
+
         # Ask for the next point
-        factory, is_EI = parse_acquisition_function(self.acquisition_function)
+        factory, is_EI = parse_acquisition_function(acquisition_function)
         kwargs = {"best_f": data.Y.max()} if is_EI else {}
         acqf = factory(model.model, **kwargs)
         bounds = torch.tensor(experiment.domain)
@@ -129,7 +144,7 @@ class FixedPolicy(Policy):
         Y = experiment(X)
 
         # Get the metadata
-        metadata = {"experiment": experiment.name, "policy": self.name}
+        metadata = self._get_metadata(experiment, data)
 
         if self.save_acquisition_function:
             metadata["acquisition_function"] = deepcopy(acqf)
@@ -137,6 +152,29 @@ class FixedPolicy(Policy):
         if self.save_model:
             metadata["model"] = deepcopy(model)
 
-        data.update(X, Y, [metadata])
+        # Note need to actually copy metadata for each of the samples in the
+        # case that q > 1
+        data.update(X, Y, [metadata for _ in range(X.shape[0])])
 
         return PolicyState()
+
+
+@define(kw_only=True)
+class FixedPolicy(RequiresBayesOpt):
+    """Executes a fixed-policy Bayesian Optimization experiment."""
+
+    acquisition_function = field()
+
+    @property
+    def name(self):
+        acqf = get_acquisition_function_name(self.acquisition_function)
+        return f"{self.__class__.__name__}-{acqf}"
+
+    def _get_acqf_at_state(self, experiment, data):
+        """Gets the acquisition function on the current state, given the
+        experiment and data"""
+
+        return self.acquisition_function
+
+    def _get_metadata(self, experiment, data):
+        return {"experiment": experiment.name, "policy": self.name}

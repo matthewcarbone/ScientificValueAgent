@@ -142,7 +142,7 @@ def logger_setup(state, d):
     - Does not log the debug stream
     - Logs the stdout stream to d/log.out (info, success)
     - Logs the stderr stream to d/log.err
-    - Logs success, error and critical to the console; omits warnings
+    - Logs info, success, error and critical to the console; omits warnings
     state==no_console completely disables the console logger but leaves the
     rest in normal mode. This is useful for when using multiprocessing or
     the hydra joblib launcher with the verbosity>0
@@ -158,7 +158,7 @@ def logger_setup(state, d):
     elif state == "no_console":
         pass
     elif state == "normal":
-        add_logger(sys.stdout, ["SUCCESS"])
+        add_logger(sys.stdout, ["INFO", "SUCCESS"])
         add_logger(sys.stderr, ["ERROR", "CRITICAL"])
     else:
         raise ValueError(f"unknown logging state {state}")

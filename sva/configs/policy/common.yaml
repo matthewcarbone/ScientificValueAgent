@@ -2,8 +2,8 @@
 
 n_max: 100
 prime_kwargs:
-  protocol: LatinHypercube
-  n: 5
+  protocol: random
+  n: 3
 model_fitting_function:
   _target_: sva.models.gp.fit_EasyGP_mll
   _partial_: true

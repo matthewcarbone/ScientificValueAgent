@@ -1,0 +1,11 @@
+_target_: sva.policy.FixedSVAPolicy
+
+acquisition_function:
+  _target_: botorch.acquisition.analytic.UpperConfidenceBound
+  _partial_: true
+  beta: 20.0
+
+defaults:
+  - _self_
+  - common.yaml
+  - /models@model_factory: single_task_gp.yaml

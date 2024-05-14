@@ -53,6 +53,15 @@ def svf(X, Y, sd=None, multiplier=1.0):
 class SVF(MSONable):
     sd = field(default=None)
     multiplier = field(default=1.0)
+    y_transform = field(default=None)
+
+    def _apply_y_transformation(self, Y):
+        if self.y_transform is None:
+            return Y
+        if self.y_transform == "log10":
+            return np.log10(Y)
+        raise ValueError(f"Unknown y_transform {self.y_transform}")
 
     def __call__(self, X, Y):
+        Y = self._apply_y_transformation(Y)
         return svf(X, Y, self.sd, self.multiplier)

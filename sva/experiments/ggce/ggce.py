@@ -22,6 +22,7 @@ class Peierls(Experiment):
     dimensionless_coupling_strength = field(default=1.0)
     hopping = field(default=1.0)
     eta = field(default=0.05)
+    disable_ggce_logger = field(default=True)
     properties = field(
         factory=lambda: ExperimentProperties(
             n_input_dim=2,
@@ -29,6 +30,10 @@ class Peierls(Experiment):
             domain=np.array([[0.0, np.pi], [-3.0, 0.0]]).T,
         )
     )
+
+    def _init_system_solver(self):
+        self._system = System(self._model)
+        self._solver = DenseSolver(self._system)
 
     def __attrs_post_init__(self):
         self._model = Model.from_parameters(hopping=self.hopping)
@@ -39,9 +44,24 @@ class Peierls(Experiment):
             phonon_number=self.phonon_number,
             dimensionless_coupling_strength=self.dimensionless_coupling_strength,
         )
-        with disable_logger():
-            self._system = System(self._model)
-            self._solver = DenseSolver(self._system)
+
+        if self.disable_ggce_logger:
+            with disable_logger():
+                self._init_system_solver()
+        else:
+            self._init_system_solver()
+
+    @property
+    def model(self):
+        return self._model
+
+    @property
+    def system(self):
+        return self._system
+
+    @property
+    def solver(self):
+        return self._solver
 
     def _truth(self, X):
         result = []

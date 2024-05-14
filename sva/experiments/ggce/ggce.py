@@ -47,5 +47,5 @@ class Peierls(Experiment):
         result = []
         for k, w in X:
             g = self._solver.greens_function([k], [w], eta=self.eta, pbar=False)
-            result.append(-np.imag(g) / np.pi)
+            result.append((-np.imag(g) / np.pi).item())
         return np.array(result).reshape(-1, 1)

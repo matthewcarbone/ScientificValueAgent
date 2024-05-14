@@ -5,6 +5,11 @@ acquisition_function:
   _partial_: true
   beta: 20.0
 
+svf:
+  _target_: sva.value.SVF
+  sd: null
+  multiplier: 1.0
+
 defaults:
   - _self_
   - common.yaml

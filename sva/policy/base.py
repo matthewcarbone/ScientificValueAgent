@@ -122,7 +122,8 @@ class RequiresBayesOpt(Policy):
 
     def step(self, experiment, data):
         # Get the model and the data
-        X, Y = self._get_data(self, experiment, data)
+        X, Y = self._get_data(experiment, data)
+        print(X.shape, Y.shape)
         model = self.model_factory(X, Y)
 
         # Fit the model

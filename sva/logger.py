@@ -31,6 +31,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
 import sys
+from collections import Counter
 from contextlib import contextmanager
 from copy import copy
 from functools import wraps
@@ -253,7 +254,10 @@ class CustomWarning:
         return f"{self.name}: {self.message} | {self.all_vars}"
 
     def __hash__(self):
-        return hash(self.__str__())
+        return hash(str(self))
+
+    def __eq__(self, other):
+        return str(self) == str(other)
 
 
 def log_warnings(f):
@@ -262,8 +266,9 @@ def log_warnings(f):
         with catch_warnings(record=True, action="once") as w:
             output = f(*args, **kwargs)
         w = [CustomWarning(ww) for ww in w]
-        for warning in set(w):
-            logger.warning(str(warning))
+        c = Counter(w)
+        for warning, num in c.items():
+            logger.warning(f"Occurred {num} times: {str(warning)}")
         return output
 
     return wrapper

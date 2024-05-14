@@ -108,6 +108,12 @@ class RequiresBayesOpt(Policy):
     )
     save_model = field(default=False, validator=instance_of(bool))
 
+    def _get_data(self, experiment, data):
+        """Retrieves the current data at every step. This might include some
+        unorthodox transformations like SVA."""
+
+        return data.X, data.Y
+
     @abstractmethod
     def _get_acqf_at_state(self, experiment, data): ...
 
@@ -115,8 +121,9 @@ class RequiresBayesOpt(Policy):
     def _get_metadata(self, experiment, data): ...
 
     def step(self, experiment, data):
-        # Get the model
-        model = self.model_factory(data.X, data.Y)
+        # Get the model and the data
+        X, Y = self._get_data(self, experiment, data)
+        model = self.model_factory(X, Y)
 
         # Fit the model
         fit_results = self.model_fitting_function(model)

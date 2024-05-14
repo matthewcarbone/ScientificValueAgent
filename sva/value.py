@@ -3,18 +3,11 @@
 Value functions should always have the signature: value(X, Y, **kwargs)
 """
 
-from abc import ABC, abstractmethod
-
 import numpy as np
 from attrs import define, field
 from scipy.spatial import distance_matrix
 
 from sva.monty.json import MSONable
-
-
-class BaseValue(ABC):
-    @abstractmethod
-    def __call__(self, X, Y): ...
 
 
 def svf(X, Y, sd=None, multiplier=1.0):
@@ -57,7 +50,7 @@ def svf(X, Y, sd=None, multiplier=1.0):
 
 
 @define
-class SVF(BaseValue, MSONable):
+class SVF(MSONable):
     sd = field(default=None)
     multiplier = field(default=1.0)
 

@@ -44,24 +44,45 @@ def svf(X, Y, sd=None, multiplier=1.0):
 
     Y_dist = distance_matrix(Y, Y)
 
-    v = Y_dist * np.exp(-(X_dist**2) / sd**2 / 2.0)
+    v = Y_dist * np.exp(-(X_dist**2) / sd**2)  # Removed factor of 2
 
     return v.mean(axis=1)
+
+
+def global_penalty(X):
+    X_dist = distance_matrix(X, X)
+    X_dist[X_dist == 0] = np.inf
+    h_min = X_dist.min(axis=1).reshape(-1, 1)
+    h_max = h_min.max()  # Maximum nearest neighbor distance
+
+    # Trying exponential decay
+    # return (1.0 - np.exp(-h_min / h_max)).squeeze()
+
+    # Trying sidmoid
+    return (1.0 / (1.0 + np.exp(-(h_min - h_max) / 1.0))).squeeze()
+
+
+def svf_global_penalty(X, v_i):
+    """Takes the result of the standard scientific value function and applies
+    a global penalty on the points: each point x_i, constraining it such that
+    the value will be low if that point it too close to neighboring points.
+    The length scale of this penalty is set by looking at the largest
+    distance in the dataset."""
+
+    return global_penalty(X) * v_i
 
 
 @define
 class SVF(MSONable):
     sd = field(default=None)
     multiplier = field(default=1.0)
-    y_transform = field(default=None)
-
-    def _apply_y_transformation(self, Y):
-        if self.y_transform is None:
-            return Y
-        if self.y_transform == "log10":
-            return np.log10(Y)
-        raise ValueError(f"Unknown y_transform {self.y_transform}")
 
     def __call__(self, X, Y):
-        Y = self._apply_y_transformation(Y)
         return svf(X, Y, self.sd, self.multiplier)
+
+
+@define
+class SVFGlobalPenalty(SVF):
+    def __call__(self, X, Y):
+        v_i = svf(X, Y, self.sd, self.multiplier)
+        return svf_global_penalty(X, v_i)

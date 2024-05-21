@@ -1,0 +1,9 @@
+svf:
+  _target_: sva.value.SVFGlobalPenalty
+  sd: null
+  multiplier: 1.0
+
+defaults:
+  - sva.yaml
+  - /models@model_factory: single_task_gp.yaml
+  - _self_

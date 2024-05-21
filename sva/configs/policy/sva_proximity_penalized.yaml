@@ -1,0 +1,11 @@
+penalty_function:
+  _target_: sva.bayesian_optimization.ProximityPenalty
+  _partial_: true
+  divisor: 500.0
+
+penalty_strength: 10000.0
+
+defaults:
+  - sva.yaml
+  - _self_
+  - /models@model_factory: single_task_gp.yaml

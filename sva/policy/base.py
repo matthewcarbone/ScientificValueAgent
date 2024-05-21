@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from attrs import define, field
 from attrs.validators import ge, instance_of
+from botorch.acquisition.penalized import PenalizedAcquisitionFunction
 from botorch.optim import optimize_acqf
 
 from sva.bayesian_optimization import parse_acquisition_function
@@ -112,17 +113,31 @@ class RequiresBayesOpt(Policy):
         """Retrieves the current data at every step. This might include some
         unorthodox transformations like SVA."""
 
-        return data.X, data.Y
+        if data.N > 0:
+            return data.X, data.Y
+
+        # Otherwise, it's cold start
+        # We provide the model with
+        X = torch.empty(0, experiment.n_input_dim)
+        Y = torch.empty(0, 1)
+        return X, Y
 
     @abstractmethod
     def _get_acqf_at_state(self, experiment, data): ...
 
+    def _penalize(self, acqf, experiment, data):
+        # Default is no penalty
+        return acqf
+
     @abstractmethod
     def _get_metadata(self, experiment, data): ...
+
+    def _get_acquisition_function_kwargs(self, experiment, data): ...
 
     def step(self, experiment, data):
         # Get the model and the data
         X, Y = self._get_data(experiment, data)
+        N = X.shape[0]
         model = self.model_factory(X, Y)
 
         # Fit the model
@@ -131,13 +146,14 @@ class RequiresBayesOpt(Policy):
 
         # Important step to get the acquisition function as a function of
         # the current step, experiment and data
-        acquisition_function = self._get_acqf_at_state(experiment, data)
-        logger.debug(f"Acquisition function is: {acquisition_function}")
+        acqf_rep = self._get_acqf_at_state(experiment, data)
+        logger.debug(f"Acquisition function is: {acqf_rep}")
 
         # Ask for the next point
-        factory, is_EI = parse_acquisition_function(acquisition_function)
-        kwargs = {"best_f": data.Y.max()} if is_EI else {}
-        acqf = factory(model.model, **kwargs)
+        acqf_factory, is_EI = parse_acquisition_function(acqf_rep)
+        kwargs = {"best_f": Y.max() if N > 0 else 0.0} if is_EI else {}
+        acqf = acqf_factory(model.model, **kwargs)
+        acqf = self._penalize(acqf, experiment, data)
         bounds = torch.tensor(experiment.domain)
         X, v = optimize_acqf(acqf, bounds=bounds, **self.optimize_kwargs)
         X = X.numpy()
@@ -168,6 +184,8 @@ class FixedPolicy(RequiresBayesOpt):
     """Executes a fixed-policy Bayesian Optimization experiment."""
 
     acquisition_function = field()
+    penalty_function = field(default=None)
+    penalty_strength = field(default=1000.0)
 
     @property
     def name(self):
@@ -213,6 +231,15 @@ class FixedPolicy(RequiresBayesOpt):
         experiment and data"""
 
         return self.acquisition_function
+
+    def _penalize(self, acqf, experiment, data):
+        if self.penalty_function is None:
+            return acqf
+        return PenalizedAcquisitionFunction(
+            acqf,
+            self.penalty_function(experiment, data),
+            regularization_parameter=self.penalty_strength,
+        )
 
     def _get_metadata(self, experiment, data):
         return {"experiment": experiment.name, "policy": self.name}

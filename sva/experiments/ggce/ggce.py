@@ -1,5 +1,6 @@
 import numpy as np
 from attrs import define, field
+from attrs.validators import instance_of
 
 from ..base import Experiment, ExperimentProperties
 
@@ -30,6 +31,7 @@ class Peierls(Experiment):
             domain=np.array([[0.0, np.pi], [-3.0, 0.0]]).T,
         )
     )
+    y_log = field(default=True, validator=instance_of(bool))
 
     def _init_system_solver(self):
         self._system = System(self._model)
@@ -37,12 +39,13 @@ class Peierls(Experiment):
 
     def __attrs_post_init__(self):
         self._model = Model.from_parameters(hopping=self.hopping)
+        dcc = self.dimensionless_coupling_strength
         self._model.add_(
             "Peierls",
             phonon_frequency=self.phonon_frequency,
             phonon_extent=self.phonon_extent,
             phonon_number=self.phonon_number,
-            dimensionless_coupling_strength=self.dimensionless_coupling_strength,
+            dimensionless_coupling_strength=dcc,
         )
 
         if self.disable_ggce_logger:
@@ -68,4 +71,7 @@ class Peierls(Experiment):
         for k, w in X:
             g = self._solver.greens_function([k], [w], eta=self.eta, pbar=False)
             result.append((-np.imag(g) / np.pi).item())
-        return np.array(result).reshape(-1, 1)
+        A = np.array(result).reshape(-1, 1)
+        if self.y_log:
+            A = np.log10(A)
+        return A

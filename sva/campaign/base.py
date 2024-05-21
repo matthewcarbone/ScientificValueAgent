@@ -22,6 +22,8 @@ class CampaignData(MSONable):
 
     @property
     def N(self):
+        if self.X is None:
+            return 0
         return self.X.shape[0]
 
     @property
@@ -86,7 +88,9 @@ class CampaignData(MSONable):
     def prime(self, experiment, protocol, **kwargs):
         """Initializes the data via some provided protocol.
 
-        Current options are "random", "LatinHypercube" and "dense".
+        Current options are "random", "LatinHypercube" and "dense". In
+        addition, there is the "cold_start" option, which does nothing. This
+        will force the campaign model to use the unconditioned prior.
 
         Parameters
         ----------
@@ -97,6 +101,9 @@ class CampaignData(MSONable):
         kwargs
             To pass to the particular method.
         """
+
+        if protocol == "cold_start":
+            return  # do nothing!
 
         if protocol == "random":
             X = experiment.get_random_coordinates(**kwargs)

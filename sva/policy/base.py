@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from functools import partial
+from math import ceil
 
 import numpy as np
 import torch
@@ -69,9 +70,25 @@ class RandomPolicy(Policy):
     at every step. Expect this policy to be pretty bad!"""
 
     def step(self, experiment, data):
-        X = experiment.get_random_coordinates(n=1)
+        X = experiment.get_random_coordinates(n=self.n_max)
         Y = experiment(X)
         metadata = {"experiment": experiment.name, "policy": self.name}
+        metadata = [metadata] * X.shape[0]
+        data.update(X, Y, metadata)
+        return PolicyState()
+
+
+@define(kw_only=True)
+class GridPolicy(Policy):
+    """Self-explanatory grid-search policy. Selects points based on an
+    even grid."""
+
+    def step(self, experiment, data):
+        ppd = ceil((self.n_max) ** (1.0 / experiment.n_input_dim))
+        X = experiment.get_dense_coordinates(ppd=ppd)
+        Y = experiment(X)
+        metadata = {"experiment": experiment.name, "policy": self.name}
+        metadata = [metadata] * X.shape[0]
         data.update(X, Y, metadata)
         return PolicyState()
 
@@ -149,11 +166,14 @@ class RequiresBayesOpt(Policy):
         acqf_rep = self._get_acqf_at_state(experiment, data)
         logger.debug(f"Acquisition function is: {acqf_rep}")
 
-        # Ask for the next point
+        # Parse the acquisition function, penalty and produce the final
+        # acquisition function at this step
         acqf_factory, is_EI = parse_acquisition_function(acqf_rep)
         kwargs = {"best_f": Y.max() if N > 0 else 0.0} if is_EI else {}
         acqf = acqf_factory(model.model, **kwargs)
         acqf = self._penalize(acqf, experiment, data)
+
+        # Get the bounds from the experiment and find the next point
         bounds = torch.tensor(experiment.domain)
         X, v = optimize_acqf(acqf, bounds=bounds, **self.optimize_kwargs)
         X = X.numpy()
@@ -201,6 +221,8 @@ class FixedPolicy(RequiresBayesOpt):
 
         elif isinstance(acqf, str):
             if "EI" in acqf:
+                beta = None
+            elif "MaxVar" in acqf:
                 beta = None
             else:
                 acqf, beta = acqf.split("-")

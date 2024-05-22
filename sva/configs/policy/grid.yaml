@@ -1,4 +1,4 @@
-_target_: sva.policy.RandomPolicy
+_target_: sva.policy.GridPolicy
 n_max: 100
 prime_kwargs:
   protocol: "cold_start"

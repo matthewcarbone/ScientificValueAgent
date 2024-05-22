@@ -87,6 +87,8 @@ def parse_acquisition_function(acqf):
     elif isinstance(acqf, str):
         if "EI" in acqf:
             return partial(ACQF_ALIASES[acqf]), True
+        if "MaxVar" in acqf:
+            return partial(ACQF_ALIASES[acqf]), False
         acqf, beta = acqf.split("-")
         return partial(ACQF_ALIASES[acqf], beta=float(beta)), False
     if not isinstance(acqf, partial):

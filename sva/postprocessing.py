@@ -60,3 +60,43 @@ def read_data(path, load_configs=False, load_logs=False):
         results[experiment_name][policy_name].append(r)
 
     return results
+
+
+# def interpolant_2d(
+#     X,
+#     grid_x,
+#     grid_y,
+#     phase_truth,
+#     interpolation_method="linear",
+# ):
+#     """Returns a 2-dimensional interpolant of the data.
+#
+#     Parameters
+#     ----------
+#     X : np.ndarray
+#         The points on the grid, of shape (n x d).
+#     grid_points : int
+#         The number of grid points to use for the linear interpolant.
+#     phase_truth : callable
+#         A function that takes as input meshgrids x and y and returns an array
+#         containing the phase proportions of phase 1.
+#     interpolation_method : str, optional
+#         The interpolation method to pass to ``griddata``. Recommendation is to
+#         use "linear", "nearest" and "cubic".
+#
+#     No Longer Returned
+#     ------------------
+#     np.ndarray, np.ndarray
+#         The "true" (dense grid) and interpolated (sampled points) results.
+#     """
+#
+#     g = np.linspace(0, 1, grid_points)
+#     dense_x, dense_y = np.meshgrid(g, g)
+#     space = np.vstack([dense_x.ravel(), dense_y.ravel()]).T
+#     true = phase_truth(space[:, 0], space[:, 1])
+#     known = phase_truth(X[:, 0], X[:, 1])
+#     interpolated = griddata(
+#         X, known, (dense_x, dense_y), method=interpolation_method
+#     )
+#     return true.reshape(grid_points, grid_points), interpolated
+#

@@ -259,13 +259,6 @@ def sample(gp, X, samples=20, observation_noise=False):
     return sampled.detach().numpy().squeeze()
 
 
-@classmethod
-def load_model(path):
-    """Loads a GPyTorch model from disk."""
-
-    return torch.jit.load(path)
-
-
 @define
 class GPMixin(MSONable):
     X = field()
@@ -413,6 +406,37 @@ class EasySingleTaskGP(GPMixin):
             covar_module,
             transform_input,
             transform_output,
+            **model_kwargs,
+        )
+
+        return deepcopy(cls(X=X, Y=Y, Yvar=None, model=model))
+
+    @classmethod
+    def from_prior(
+        cls,
+        d,
+        likelihood=gpytorch.likelihoods.GaussianLikelihood(),
+        mean_module=gpytorch.means.ConstantMean(),
+        covar_module=gpytorch.kernels.ScaleKernel(
+            gpytorch.kernels.MaternKernel()
+        ),
+        **model_kwargs,
+    ):
+        """Initializes a model from its prior only."""
+
+        X = torch.empty(0, d)
+        Y = torch.empty(0, 1)
+
+        model = get_simple_model(
+            "SingleTaskGP",
+            X,
+            Y,
+            None,  # train_Yvar
+            likelihood,
+            mean_module,
+            covar_module,
+            transform_input=False,
+            transform_output=False,
             **model_kwargs,
         )
 

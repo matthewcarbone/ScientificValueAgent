@@ -4,6 +4,7 @@ from .negatedrosenbrock2d.negatedrosenbrock2d import NegatedRosenbrock2d
 from .rastrigin2d.rastrigin2d import Rastrigin2d
 from .simple2d.simple2d import Simple2d
 from .simplesigmoid.simplesigmoid import SimpleSigmoid
+from .sine2phase.sine2phase import Sine2Phase
 
 __all__ = [
     "Simple2d",
@@ -12,4 +13,5 @@ __all__ = [
     "NegatedAckley2d",
     "SimpleSigmoid",
     "Peierls",
+    "Sine2Phase",
 ]

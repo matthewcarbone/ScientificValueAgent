@@ -1,7 +1,6 @@
 import hydra
 from hydra.utils import instantiate
 
-from sva import __version__
 from sva.campaign import Campaign
 from sva.logger import log_warnings, logger_setup
 

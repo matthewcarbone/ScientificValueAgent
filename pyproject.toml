@@ -42,7 +42,7 @@ dependencies = [
     "rootutils",
     "pyyaml",
     "pyastronomy==0.20.0",
-    "dunamai==1.19.2",
+    "dunamai==1.21.1",
     "loguru",
 ]
 
@@ -67,7 +67,7 @@ notebook = [
 ]
 build = [
     "flit~=3.7",
-    "dunamai==1.19.2",
+    "dunamai==1.21.1",
 ]
 ggce = [
     "ggce==0.1.3",

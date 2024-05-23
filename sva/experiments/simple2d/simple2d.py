@@ -28,7 +28,7 @@ class Simple2d(Experiment):
     def compute_distance_metric(data):
         """A simplistic metric that takes a data dictionary such that its keys
         are names of acquisition functions, and its values are list of
-        Campaign objects. The minimum L2 distance between the true_optima and the
+        Campaign objects. The minimum L2 distance between the true_optima and
         sampled point is calculated at every step."""
 
         optima = Simple2d.true_optima

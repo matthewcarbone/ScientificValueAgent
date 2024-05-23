@@ -1,4 +1,3 @@
-from .ggce.ggce import Peierls
 from .negatedackley2d.negatedackley2d import NegatedAckley2d
 from .negatedrosenbrock2d.negatedrosenbrock2d import NegatedRosenbrock2d
 from .rastrigin2d.rastrigin2d import Rastrigin2d
@@ -12,6 +11,5 @@ __all__ = [
     "Rastrigin2d",
     "NegatedAckley2d",
     "SimpleSigmoid",
-    "Peierls",
     "Sine2Phase",
 ]

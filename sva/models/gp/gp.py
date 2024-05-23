@@ -392,9 +392,26 @@ class EasySingleTaskGP(GPMixin):
         ),
         transform_input=True,
         transform_output=True,
+        input_dims=None,
         **model_kwargs,
     ):
         """Gets a SingleTaskGP from some sensible default parameters."""
+
+        if X is None and Y is None:
+            if input_dims is None:
+                raise ValueError(
+                    "X and Y were not provided, and neither was a specified "
+                    "input dimension, meaning it is not possible to "
+                    "create a prior. You must specify input_dims in this case"
+                )
+            X = torch.empty(0, input_dims)
+            Y = torch.empty(0, 1)
+            transform_input = False
+            transform_output = False
+
+        elif X.shape[0] == 0 and Y.shape[0] == 0:
+            transform_input = False
+            transform_output = False
 
         model = get_simple_model(
             "SingleTaskGP",
@@ -406,37 +423,6 @@ class EasySingleTaskGP(GPMixin):
             covar_module,
             transform_input,
             transform_output,
-            **model_kwargs,
-        )
-
-        return deepcopy(cls(X=X, Y=Y, Yvar=None, model=model))
-
-    @classmethod
-    def from_prior(
-        cls,
-        d,
-        likelihood=gpytorch.likelihoods.GaussianLikelihood(),
-        mean_module=gpytorch.means.ConstantMean(),
-        covar_module=gpytorch.kernels.ScaleKernel(
-            gpytorch.kernels.MaternKernel()
-        ),
-        **model_kwargs,
-    ):
-        """Initializes a model from its prior only."""
-
-        X = torch.empty(0, d)
-        Y = torch.empty(0, 1)
-
-        model = get_simple_model(
-            "SingleTaskGP",
-            X,
-            Y,
-            None,  # train_Yvar
-            likelihood,
-            mean_module,
-            covar_module,
-            transform_input=False,
-            transform_output=False,
             **model_kwargs,
         )
 

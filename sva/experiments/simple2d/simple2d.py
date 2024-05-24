@@ -22,7 +22,9 @@ class Simple2d(Experiment):
         res = (1 - x / 3.0 + x**5 + y**5) * np.exp(
             -(x**2) - y**2
         ) + 2.0 * np.exp(-((x - 2) ** 2) - (y + 4) ** 2)
-        return res.reshape(-1, 1)
+        # Constant offset so that the minimum is roughly 0
+        const = 0.737922
+        return (res.reshape(-1, 1) + const) / (2.0 + const)
 
     @staticmethod
     def compute_distance_metric(data):

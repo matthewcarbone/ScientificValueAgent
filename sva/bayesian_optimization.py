@@ -17,6 +17,8 @@ from botorch.utils.transforms import (
 from scipy.spatial import distance_matrix
 from torch import nn
 
+from sva.models import DEVICE
+
 
 class MaxVariance(AnalyticAcquisitionFunction):
     def __init__(self, model, **kwargs):
@@ -24,6 +26,7 @@ class MaxVariance(AnalyticAcquisitionFunction):
 
     @t_batch_mode_transform(expected_q=1)
     def forward(self, X):
+        X = X.to(DEVICE)
         posterior = self.model.posterior(
             X=X, posterior_transform=self.posterior_transform
         )
@@ -52,6 +55,7 @@ class qMaxVariance(MCAcquisitionFunction):
     @concatenate_pending_points
     @t_batch_mode_transform()
     def forward(self, X):
+        X = X.to(DEVICE)
         posterior = self.model.posterior(
             X=X, posterior_transform=self.posterior_transform
         )

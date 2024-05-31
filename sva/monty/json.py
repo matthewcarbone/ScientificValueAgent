@@ -619,6 +619,11 @@ class MontyEncoder(json.JSONEncoder):
                 "@class": "Tensor",
                 "dtype": o.type(),
             }
+
+            # If the tensor is empty, we should save that explicit dimension
+            if o.numel() == 0:
+                d["shape"] = list(o.shape)
+
             if "Complex" in o.type():
                 d["data"] = [o.real.tolist(), o.imag.tolist()]  # type: ignore
             else:
@@ -829,6 +834,11 @@ class MontyDecoder(json.JSONDecoder):
                     and modname == "torch"
                     and classname == "Tensor"
                 ):
+                    # special case of an empty tensor
+                    shape = d.get("shape")
+                    if shape is not None:
+                        return torch.empty(*shape).type(d["dtype"])
+
                     if "Complex" in d["dtype"]:
                         return torch.tensor(  # pylint: disable=E1101
                             [

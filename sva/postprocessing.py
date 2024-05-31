@@ -62,6 +62,26 @@ def read_data(path, load_configs=False, load_logs=False):
     return results
 
 
+def sort_keys(keys):
+    """Sorts the acquisition function keys returned by read_data in order
+    of increasing exploitation (mostly)."""
+
+    new_keys = []
+    if "RandomPolicy" in keys:
+        new_keys.append("RandomPolicy")
+    if "GridPolicy" in keys:
+        new_keys.append("GridPolicy")
+    if "MaxVar" in keys:
+        new_keys.append("MaxVar")
+    # everything else should be UCB
+    remaining_keys = [k for k in keys if "UCB" in k]
+    remaining_keys.sort(key=lambda x: -float(x.split("-")[1]))
+    new_keys.extend(remaining_keys)
+    if "EI" in keys:
+        new_keys.append("EI")
+    return new_keys
+
+
 # def interpolant_2d(
 #     X,
 #     grid_x,

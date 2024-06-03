@@ -3,11 +3,19 @@ from functools import partial
 import numpy as np
 import torch
 from attrs import define, field
-from botorch.acquisition import ExpectedImprovement, UpperConfidenceBound
-from botorch.acquisition.analytic import AnalyticAcquisitionFunction
+from botorch.acquisition.analytic import (
+    AnalyticAcquisitionFunction,
+    ExpectedImprovement,
+    LogExpectedImprovement,
+    LogProbabilityOfImprovement,
+    ProbabilityOfImprovement,
+    UpperConfidenceBound,
+    qAnalyticProbabilityOfImprovement,
+)
 from botorch.acquisition.monte_carlo import (
     MCAcquisitionFunction,
     qExpectedImprovement,
+    qProbabilityOfImprovement,
     qUpperConfidenceBound,
 )
 from botorch.utils.transforms import (
@@ -67,12 +75,21 @@ class qMaxVariance(MCAcquisitionFunction):
 
 
 ACQF_ALIASES = {
+    "PI": ProbabilityOfImprovement,
+    "LogPI": LogProbabilityOfImprovement,
+    "LogEI": LogExpectedImprovement,
     "EI": ExpectedImprovement,
     "UCB": UpperConfidenceBound,
     "qEI": qExpectedImprovement,
     "qUCB": qUpperConfidenceBound,
     "MaxVar": MaxVariance,
     "qMaxVar": qMaxVariance,
+    "qaPI": qAnalyticProbabilityOfImprovement,
+    "qPI": qProbabilityOfImprovement,
+}
+
+ACQF_ALIASES_REVERSED = {
+    str(value.__name__): key for key, value in ACQF_ALIASES.items()
 }
 
 
@@ -81,33 +98,40 @@ def parse_acquisition_function(acqf):
     Also returns a boolean for whether or not the acquisition function is
     EI and requires the best_f argument."""
 
-    if isinstance(acqf, dict):
-        acqf_kwargs = acqf["kwargs"]
-        acqf = acqf["acquisition_function"]
-        acqf_kwargs = acqf_kwargs if acqf_kwargs is not None else {}
-        acqf = ACQF_ALIASES[acqf]
-        requires_best_f = "ExpectedImprovement" in acqf.__class__.__name__
-        return partial(acqf, **acqf_kwargs), requires_best_f
-    elif isinstance(acqf, str):
-        if "EI" in acqf:
-            return partial(ACQF_ALIASES[acqf]), True
+    if isinstance(acqf, str):
+        if "UCB" in acqf:
+            acqf2, beta = acqf.split("-")
+            return {
+                "acqf_factory": partial(ACQF_ALIASES[acqf2], beta=float(beta)),
+                "requires_best_f": False,
+                "name": acqf,
+            }
+
+        # covers EI, PI, LogEI, LogPI, and the q versions of it
+        if "EI" in acqf or "PI" in acqf:
+            return {
+                "acqf_factory": partial(ACQF_ALIASES[acqf]),
+                "requires_best_f": True,
+                "name": acqf,
+            }
+
         if "MaxVar" in acqf:
-            return partial(ACQF_ALIASES[acqf]), False
-        acqf, beta = acqf.split("-")
-        return partial(ACQF_ALIASES[acqf], beta=float(beta)), False
-    if not isinstance(acqf, partial):
-        raise ValueError("acqf is not dict or string, must be partial")
-    return acqf, "ExpectedImprovement" in str(acqf.func)
+            return {
+                "acqf_factory": partial(ACQF_ALIASES[acqf]),
+                "requires_best_f": False,
+                "name": acqf,
+            }
 
+    elif isinstance(acqf, partial):
+        name = ACQF_ALIASES_REVERSED[str(acqf.name)]
+        requires_best_f = "EI" in name or "PI" in name
+        return {
+            "acqf_factory": acqf,
+            "requires_best_f": requires_best_f,
+            "name": name,
+        }
 
-def get_acquisition_function_name(acqf):
-    """Gets a string representation of the acquisition function provided."""
-    if isinstance(acqf, dict):
-        return acqf["acquisition_function"]
-    elif isinstance(acqf, str):
-        return acqf
-    # Otherwise, it's some sort of partial object
-    return str(acqf.func.__name__)
+    raise ValueError("acqf is not string or partial")
 
 
 @define

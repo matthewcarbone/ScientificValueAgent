@@ -171,8 +171,11 @@ class RequiresBayesOpt(Policy):
 
         # Parse the acquisition function, penalty and produce the final
         # acquisition function at this step
-        acqf_factory, is_EI = parse_acquisition_function(acqf_rep)
-        kwargs = {"best_f": Y.max() if N > 0 else 0.0} if is_EI else {}
+        r = parse_acquisition_function(acqf_rep)
+        acqf_factory = r["acqf_factory"]
+        requires_bf = r["requires_best_f"]
+
+        kwargs = {"best_f": Y.max() if N > 0 else 0.0} if requires_bf else {}
         acqf = acqf_factory(model.model, **kwargs)
         acqf = self._penalize(acqf, experiment, data)
 
@@ -204,7 +207,10 @@ class RequiresBayesOpt(Policy):
 
 @define(kw_only=True)
 class FixedPolicy(RequiresBayesOpt):
-    """Executes a fixed-policy Bayesian Optimization experiment."""
+    """Executes a fixed-policy Bayesian Optimization experiment. The
+    acquisition function is either a partial object from hydra, or a simple
+    string alias for that partial. A dictionary for converting between
+    these representations is provided in sva.bayesian_optimization."""
 
     acquisition_function = field()
     penalty_function = field(default=None)
@@ -212,44 +218,7 @@ class FixedPolicy(RequiresBayesOpt):
 
     @property
     def name(self):
-        acqf = self.acquisition_function
-
-        if isinstance(acqf, dict):
-            acqf_kwargs = acqf["kwargs"]
-            acqf = acqf["acquisition_function"]
-            if "EI" in acqf:
-                beta = None
-            else:
-                beta = acqf_kwargs["beta"]
-
-        elif isinstance(acqf, str):
-            if "EI" in acqf:
-                beta = None
-            elif "MaxVar" in acqf:
-                beta = None
-            else:
-                acqf, beta = acqf.split("-")
-
-        elif isinstance(acqf, partial):
-            if "qExpectedImprovement" == acqf.func.__name__:
-                beta = None
-                acqf = "qEI"
-            elif "ExpectedImprovement" == acqf.func.__name__:
-                beta = None
-                acqf = "EI"
-            elif "qUpperConfidenceBound" == acqf.func.__name__:
-                beta = acqf.keywords["beta"]
-                acqf = "qUCB"
-            elif "UpperConfidenceBound" == acqf.func.__name__:
-                beta = acqf.keywords["beta"]
-                acqf = "UCB"
-            else:
-                raise ValueError(f"Invalid acqf {acqf}")
-
-        if beta is None:
-            return acqf
-        beta = float(beta)
-        return f"{acqf}-{beta:.02f}"
+        return parse_acquisition_function(self.acquisition_function)["name"]
 
     def _get_acqf_at_state(self, experiment, data):
         """Gets the acquisition function on the current state, given the

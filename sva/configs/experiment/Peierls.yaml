@@ -1,4 +1,4 @@
-_target_: sva.experiments.Peierls
+_target_: sva.experiments.ggce.ggce.Peierls
 phonon_frequency: 1.0
 phonon_extent: 2
 phonon_number: 3

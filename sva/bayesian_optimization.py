@@ -182,13 +182,11 @@ class ProximityPenalty(BasePenalty):
 
         # Compute the distance between x in the current batch and the existing
         # points to find closest ones
+        # d is of shape (N_x, N_current_X)
         d = distance_matrix(x.squeeze(), self.current_X)
 
-        # Compute the minimum distance between the candidates and the existing
-        # points
-        d_nn = d.min(axis=1)
-
-        # Compute the penalty
-        p = np.exp(-d_nn / self.lengthscale)
+        # Compute the penalty as a sum of the distances instead of just
+        # using the minimum distance
+        p = np.exp(-d / self.lengthscale).sum(axis=-1)
 
         return torch.tensor(p.squeeze())

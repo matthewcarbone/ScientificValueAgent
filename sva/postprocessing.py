@@ -1,6 +1,7 @@
 from collections import defaultdict
 from pathlib import Path
 
+from tqdm import tqdm
 from yaml import safe_load
 
 from sva.monty.json import load_anything
@@ -51,7 +52,7 @@ def read_data(path, load_configs=False, load_logs=False):
     # We know that in that directory, there is a hydra config file as well
     paths = list(Path(path).rglob("*.json"))
 
-    for p in paths:
+    for p in tqdm(paths):
         r = load_hydra_result(p, load_configs=load_configs, load_logs=load_logs)
         experiment_name = r["campaign"].experiment.name
         policy_name = r["campaign"].policy.name

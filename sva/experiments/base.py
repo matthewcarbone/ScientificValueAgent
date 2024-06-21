@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod, abstractproperty
+from abc import ABC, abstractmethod
 
 import numpy as np
 from attrs import define, field, frozen
@@ -51,6 +51,7 @@ class Experiment(ABC, MSONable):
 
     metadata = field(factory=dict)
     noise = field(default=0.0)
+    properties = field(default=None)
 
     @noise.validator
     def validate_noise(self, _, value):
@@ -60,9 +61,6 @@ class Experiment(ABC, MSONable):
             pass
         else:
             raise ValueError("noise must be float/int >= 0 or callable")
-
-    @abstractproperty
-    def properties(self): ...
 
     @abstractmethod
     def _truth(self, _):

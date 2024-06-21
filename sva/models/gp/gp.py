@@ -339,7 +339,8 @@ class GPMixin(MSONable):
         if "raw_samples" not in kwargs:
             kwargs["raw_samples"] = 100
 
-        acqf = UpperConfidenceBound(self.model.model, beta=0.0)
+        acqf = UpperConfidenceBound(self.model, beta=0.0)
+        domain = torch.FloatTensor(domain)
         next_pts, _ = optimize_acqf(acqf, bounds=domain, **kwargs)
         return next_pts
 

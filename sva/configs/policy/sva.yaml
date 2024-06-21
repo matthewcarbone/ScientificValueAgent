@@ -9,6 +9,7 @@ svf:
   _target_: sva.value.SVF
   sd: null
   multiplier: 1.0
+  proximity_penalty: null
 
 penalty_function: null
 

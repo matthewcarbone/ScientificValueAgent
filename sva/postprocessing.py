@@ -1,4 +1,5 @@
 from collections import defaultdict
+from functools import cache
 from pathlib import Path
 
 from tqdm import tqdm
@@ -38,6 +39,7 @@ def load_hydra_result(path, load_configs=False, load_logs=False):
     return result
 
 
+@cache
 def read_data(path, load_configs=False, load_logs=False):
     """Reads all results into memory recursively from the provided path.
     Searches for all files matching the .json pattern and loads a re-hydrated

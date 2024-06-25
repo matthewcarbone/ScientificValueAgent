@@ -157,12 +157,16 @@ class RequiresBayesOpt(Policy):
         N = X.shape[0]
         model = self.model_factory(X, Y)
 
-        # Fit the model if we have data
-        if N > 0:
+        # Fit the model if we have at least 3 data points
+        # Otherwise, we simply use the default length scale (which is 1).
+        # The reason for this is because when attempting to fit the
+        # model with less that a few data points, we can possibly overfit
+        # and mess up the rest of the process
+        if N > 2:
             fit_results = self.model_fitting_function(model)
             logger.debug(f"Model fit, output is: {fit_results}")
         else:
-            logger.debug("No data provided, model fitting skipped")
+            logger.debug("Not enough data provided, model fitting skipped")
 
         # Important step to get the acquisition function as a function of
         # the current step, experiment and data

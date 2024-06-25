@@ -125,6 +125,7 @@ class RequiresBayesOpt(Policy):
         default=False, validator=instance_of(bool)
     )
     save_model = field(default=False, validator=instance_of(bool))
+    calculate_model_maximum = field(default=True, validator=instance_of(bool))
 
     def _get_data(self, experiment, data):
         """Retrieves the current data at every step. This might include some
@@ -195,6 +196,9 @@ class RequiresBayesOpt(Policy):
 
         # Get the metadata
         metadata = self._get_metadata(experiment, data)
+
+        if self.calculate_model_maximum:
+            metadata["model_maximum"] = model.find_optima(experiment.domain)
 
         if self.save_acquisition_function:
             metadata["acquisition_function"] = deepcopy(acqf)

@@ -341,8 +341,7 @@ class GPMixin(MSONable):
 
         acqf = UpperConfidenceBound(self.model, beta=0.0)
         domain = torch.FloatTensor(domain)
-        next_pts, _ = optimize_acqf(acqf, bounds=domain, **kwargs)
-        return next_pts
+        return optimize_acqf(acqf, bounds=domain, **kwargs)
 
     def dream(self, domain, ppd=20):
         """Creates a new Gaussian Process model by sampling a single instance

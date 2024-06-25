@@ -1,6 +1,7 @@
 from .gp.gp import GPDream
 from .negatedackley2d.negatedackley2d import NegatedAckley2d
 from .negatedrosenbrock2d.negatedrosenbrock2d import NegatedRosenbrock2d
+from .quadraticprior.quadraticprior import QuadraticPrior
 from .rastrigin2d.rastrigin2d import Rastrigin2d
 from .simple2d.simple2d import Simple2d
 from .simplesigmoid.simplesigmoid import SimpleSigmoid
@@ -14,4 +15,5 @@ __all__ = [
     "SimpleSigmoid",
     "Sine2Phase",
     "GPDream",
+    "QuadraticPrior",
 ]

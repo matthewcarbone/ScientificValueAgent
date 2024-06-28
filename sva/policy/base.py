@@ -115,7 +115,7 @@ class RequiresBayesOpt(Policy):
 
     @model_fitting_function.validator
     def validate_model_fitting_function(self, _, value):
-        if not isinstance(value, partial):
+        if not isinstance(value, (type(None), partial)):
             raise ValueError(
                 f"Provided model_fitting_function {value} must be of type "
                 "partial"
@@ -163,7 +163,9 @@ class RequiresBayesOpt(Policy):
         # The reason for this is because when attempting to fit the
         # model with less that a few data points, we can possibly overfit
         # and mess up the rest of the process
-        if N > 2:
+        if self.model_fitting_function is None:
+            logger.debug("Model fitting function is None, skipping")
+        elif N > 2:
             fit_results = self.model_fitting_function(model)
             logger.debug(f"Model fit, output is: {fit_results}")
         else:

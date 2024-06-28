@@ -2,8 +2,7 @@
 
 n_max: 100
 prime_kwargs:
-  protocol: random
-  n: 3
+  protocol: cold_start
 model_fitting_function:
   _target_: sva.models.gp.fit_EasyGP_mll
   _partial_: true

@@ -1,0 +1,5 @@
+_target_: sva.experiments.GPDream.dream_from_periodic_prior
+d: 2
+length_scale: 0.1
+period: 1
+seed: 2

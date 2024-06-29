@@ -376,6 +376,29 @@ class GPMixin(MSONable):
         return new_gp
 
 
+def get_covar_module(d):
+    """Helper function to get the covariance module given a dictionary of
+    parameters specifying which covariance module to use."""
+
+    d = d.copy()
+    kernel = d.pop("kernel").lower()
+
+    # The rest are attributes
+    if kernel == "matern":
+        k2 = gpytorch.kernels.MaternKernel()
+    elif kernel == "rbf":
+        k2 = gpytorch.kernels.RBFKernel()
+    elif kernel == "periodic":
+        k2 = gpytorch.kernels.PeriodicKernel()
+    else:
+        raise ValueError(f"Unknown kernel type {kernel}")
+
+    for key, value in d.items():
+        setattr(k2, key, torch.tensor(value))
+
+    return gpytorch.kernels.ScaleKernel(k2)
+
+
 @define(kw_only=True)
 class EasySingleTaskGP(GPMixin):
     model = field(validator=validators.instance_of(SingleTaskGP))
@@ -412,6 +435,9 @@ class EasySingleTaskGP(GPMixin):
         elif X.shape[0] == 0 and Y.shape[0] == 0:
             transform_input = False
             transform_output = False
+
+        if isinstance(covar_module, dict):
+            covar_module = get_covar_module(covar_module)
 
         model = get_simple_model(
             "SingleTaskGP",
@@ -455,6 +481,9 @@ class EasyFixedNoiseGP(GPMixin):
     ):
         """Gets a SingleTaskGP from some sensible default parameters."""
 
+        if isinstance(covar_module, dict):
+            covar_module = get_covar_module(covar_module)
+
         model = get_simple_model(
             "FixedNoiseGP",
             X,
@@ -492,6 +521,9 @@ class EasyMultiTaskGP(GPMixin):
         **model_kwargs,
     ):
         """Gets a MultiTaskGP from some sensible default parameters."""
+
+        if isinstance(covar_module, dict):
+            covar_module = get_covar_module(covar_module)
 
         model = get_simple_model(
             "MultiTaskGP",

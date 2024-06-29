@@ -1,4 +1,0 @@
-_target_: sva.experiments.GPDream.dream_from_RBF_prior
-d: 2
-length_scale: 0.1
-seed: 2

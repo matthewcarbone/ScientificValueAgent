@@ -1,9 +1,9 @@
 import gpytorch
 import numpy as np
-import torch
-from attrs import define
+from attrs import define, field
 
 from sva.models.gp import EasySingleTaskGP
+from sva.models.gp.gp import get_covar_module
 from sva.utils import get_coordinates, seed_everything
 
 from ..base import Experiment, ExperimentProperties
@@ -11,59 +11,40 @@ from ..base import Experiment, ExperimentProperties
 
 @define
 class GPDream(Experiment):
-    gp = None
+    gp = field(default=None)
+    seed = field(default=None)
 
     @classmethod
-    def dream_from_RBF_prior(cls, d=1, length_scale=1.0, seed=1):
+    def from_default(cls, d=1, seed=1, **kwargs):
+        # Available options for now
+        assert set(list(kwargs.keys())).issubset(
+            set(["kernel", "lengthscale", "period_length"])
+        )
         properties = ExperimentProperties(
             n_input_dim=d,
             n_output_dim=1,
-            domain=np.array([[-1, 1] for _ in range(d)]).T,
+            domain=np.array([[-1.0, 1.0] for _ in range(d)]).T,
         )
         seed_everything(seed)
-        rbf = gpytorch.kernels.RBFKernel()
-        rbf.lengthscale = torch.tensor(length_scale)
-        kernel = gpytorch.kernels.ScaleKernel(rbf)
+        lengthscale = kwargs["lengthscale"]
+        kernel = get_covar_module(kwargs)
+        kernel = gpytorch.kernels.ScaleKernel(kernel)
 
         gp = EasySingleTaskGP.from_default(
             X=None, Y=None, covar_module=kernel, input_dims=d
         )
 
-        ppd = int(5.0 / length_scale)
+        ppd = int(5.0 / lengthscale)
 
         X = get_coordinates(ppd, properties.domain)
         Y = gp.sample(X, samples=1)
         Y = Y.reshape(-1, 1)
-        klass = cls(properties=properties)
-        klass.gp = EasySingleTaskGP.from_default(X, Y, covar_module=kernel)
-        return klass
-
-    @classmethod
-    def dream_from_periodic_prior(
-        cls, d=1, length_scale=1.0, period=0.1, seed=1
-    ):
-        properties = ExperimentProperties(
-            n_input_dim=d,
-            n_output_dim=1,
-            domain=np.array([[-1, 1] for _ in range(d)]).T,
+        klass = cls(
+            properties=properties,
+            gp=EasySingleTaskGP.from_default(X, Y, covar_module=kernel),
+            seed=seed,
         )
-        seed_everything(seed)
-        periodic = gpytorch.kernels.PeriodicKernel()
-        periodic.lengthscale = torch.tensor(length_scale)
-        periodic.period_length = torch.tensor(period)
-        kernel = gpytorch.kernels.ScaleKernel(periodic)
-
-        gp = EasySingleTaskGP.from_default(
-            X=None, Y=None, covar_module=kernel, input_dims=d
-        )
-
-        ppd = int(5.0 / length_scale)
-
-        X = get_coordinates(ppd, properties.domain)
-        Y = gp.sample(X, samples=1)
-        Y = Y.reshape(-1, 1)
-        klass = cls(properties=properties)
-        klass.gp = EasySingleTaskGP.from_default(X, Y, covar_module=kernel)
+        klass.metadata["true_optimum"] = klass.gp.find_optima(properties.domain)
         return klass
 
     def find_optima(self, **kwargs):

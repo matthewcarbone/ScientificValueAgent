@@ -3,8 +3,7 @@ likelihood:
 mean_module:
   _target_: gpytorch.means.ConstantMean
 covar_module:
-  _target_: gpytorch.kernels.ScaleKernel
-  base_kernel:
-    _target_: gpytorch.kernels.MaternKernel
+  kernel: matern
+  lengthscale: 1.0
 transform_input: true
 transform_output: true

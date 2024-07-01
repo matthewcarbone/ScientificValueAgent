@@ -1,7 +1,7 @@
 #!/bin/bash
 
-SEED="range(10,60)"
-ACQUISITION_FUNCTIONS="UCB-0.0,UCB-4.0,UCB-36.0,UCB-100.0,MaxVar"
+SEED="range(10,20)"
+ACQUISITION_FUNCTIONS="UCB-4.0,UCB-36.0,UCB-100.0,MaxVar"
 MAX_EXPERIMENT_SEED=10
 LENGTH_SCALES=('0.1' '0.2' '0.3' '0.4' '0.5')
 DIMENSIONS=('1' '2' '3')
@@ -14,7 +14,7 @@ for experiment_length_scale in "${LENGTH_SCALES[@]}"; do
 		for experiment_seed in $(seq 1 $MAX_EXPERIMENT_SEED); do
 			for gp_length_scale in "${LENGTH_SCALES[@]}"; do
 
-				name="dream_${experiment_length_scale}_${experiment_dimension}_${experiment_seed}_${gp_length_scale}"
+				name="dream_${KERNEL}_${experiment_length_scale}_${experiment_dimension}_${experiment_seed}_gp${gp_length_scale}"
 
 				tsp sva_run \
 					-m hydra/launcher=joblib \

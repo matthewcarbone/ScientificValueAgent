@@ -1,5 +1,0 @@
-_target_: sva.experiments.GPDream.from_default
-kernel: rbf
-d: 2
-lengthscale: 0.5
-seed: 2

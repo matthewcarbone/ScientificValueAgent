@@ -1,6 +1,7 @@
 """Module containing helpers for single task GPs written in gpytorch and
 botorch."""
 
+import warnings
 from copy import deepcopy
 
 import gpytorch
@@ -14,7 +15,6 @@ from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
 from botorch.optim import optimize_acqf
 
-from sva.logger import logger
 from sva.models import DEVICE
 from sva.monty.json import MSONable
 from sva.utils import Timer, get_coordinates
@@ -325,7 +325,7 @@ class GPMixin(MSONable):
         """
 
         if "q" in kwargs:
-            logger.warning(
+            warnings.warn(
                 "q has been provided to the optimizer but will be "
                 "overridden to 1"
             )

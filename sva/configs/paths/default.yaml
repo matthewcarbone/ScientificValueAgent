@@ -1,8 +1,0 @@
-root_dir: "results"
-
-run_dir: ${paths.root_dir}/${name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
-sweep_run_dir: ${paths.root_dir}/${name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
-
-output_dir: ${hydra:runtime.output_dir}
-
-work_dir: ${hydra:runtime.cwd}

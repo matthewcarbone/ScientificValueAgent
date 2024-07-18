@@ -1,4 +1,0 @@
-_target_: sva.policy.RandomPolicy
-n_max: 100
-prime_kwargs:
-  protocol: "cold_start"

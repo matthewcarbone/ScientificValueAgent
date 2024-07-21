@@ -1,4 +1,4 @@
-from .gp.gp import GPDream
+from .gp.gp import GPDream, GPDreamKNN
 from .negatedackley2d.negatedackley2d import NegatedAckley2d
 from .negatedrosenbrock2d.negatedrosenbrock2d import NegatedRosenbrock2d
 from .quadraticprior.quadraticprior import QuadraticPrior
@@ -15,5 +15,6 @@ __all__ = [
     "SimpleSigmoid",
     "Sine2Phase",
     "GPDream",
+    "GPDreamKNN",
     "QuadraticPrior",
 ]

@@ -334,10 +334,10 @@ class GPMixin(MSONable):
             kwargs["q"] = 1
 
         if "num_restarts" not in kwargs:
-            kwargs["num_restarts"] = 20
+            kwargs["num_restarts"] = 200
 
         if "raw_samples" not in kwargs:
-            kwargs["raw_samples"] = 100
+            kwargs["raw_samples"] = 1000
 
         acqf = UpperConfidenceBound(self.model, beta=0.0)
         domain = torch.FloatTensor(domain)

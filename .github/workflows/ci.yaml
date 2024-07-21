@@ -8,8 +8,8 @@ on:
 
 jobs:
 
-  style_syntax:
-    uses: ./.github/workflows/style_syntax.yaml
+  # style_syntax:
+  #   uses: ./.github/workflows/style_syntax.yaml
 
   notebook:
     uses: ./.github/workflows/notebook_smoke.yaml

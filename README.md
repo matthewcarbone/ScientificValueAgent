@@ -11,6 +11,18 @@ The Scientific Value Agent (SVA) is a collection of tools for Gaussian Process (
 > [!NOTE]
 > If you use the Scientific Value Agent, please consider citing our [manuscript](https://doi.org/10.1016/j.matt.2023.11.012) in Matter. The software corresponding to this manuscript is tagged as [`v1.1.0`](https://github.com/matthewcarbone/ScientificValueAgent/tree/v1.1.0).
 
+# 🧱 Install
+
+Currently, the best way to install the SVA code is to simply clone the repository, and then install in editable form inside some conda environment or related, that way both the command line interface and API are accessible. For instance
+
+```bash
+conda create -n py3.11-sva-e python=3.11 -y
+conda activate py3.11-sva-e
+git clone git@github.com:matthewcarbone/ScientificValueAgent.git
+cd ScientificValueAgent
+pip install -e .
+```
+
 
 # 🚀 Examples
 

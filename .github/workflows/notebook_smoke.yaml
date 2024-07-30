@@ -29,6 +29,7 @@ jobs:
     - name: Install dependencies
       run: |
         bash scripts/install.sh
+        bash scripts/install.sh ggce
         bash scripts/install.sh notebook
 
     - name: Notebook smoke tests

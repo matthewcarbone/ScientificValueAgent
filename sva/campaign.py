@@ -2,12 +2,11 @@ from abc import ABC, abstractmethod
 from copy import deepcopy
 from functools import partial
 from math import ceil
-from pathlib import Path
 
 import numpy as np
 import torch
 from attrs import define, field
-from attrs.validators import ge, instance_of, optional
+from attrs.validators import ge, instance_of
 from botorch.acquisition.penalized import PenalizedAcquisitionFunction
 from botorch.optim import optimize_acqf
 
@@ -16,6 +15,7 @@ from sva.logger import logger
 from sva.models import EasySingleTaskGP, fit_EasyGP_mll
 from sva.monty.json import MSONable
 from sva.utils import Timer, seed_everything
+from sva.value import SVF
 
 
 @define(kw_only=True)
@@ -207,7 +207,7 @@ class FixedPolicy(RequiresBayesOpt):
     these representations is provided in sva.bayesian_optimization."""
 
     acquisition_function = field(default="EI")
-    penalty_function = field(default=None)
+    penalty_function_factory = field(default=None)
     penalty_strength = field(default=1000.0)
 
     @property
@@ -221,16 +221,26 @@ class FixedPolicy(RequiresBayesOpt):
         return self.acquisition_function
 
     def _penalize(self, acqf, experiment, data):
-        if self.penalty_function is None:
+        if self.penalty_function_factory is None:
             return acqf
         return PenalizedAcquisitionFunction(
             acqf,
-            self.penalty_function(experiment, data),
+            self.penalty_function_factory(experiment, data),
             regularization_parameter=self.penalty_strength,
         )
 
     def _get_metadata(self, experiment, data):
         return {"experiment": experiment.name, "policy": self.name}
+
+
+@define
+class FixedSVAPolicy(FixedPolicy):
+    """Executes a Scientific Value Function-driven experiment."""
+
+    svf = field(factory=SVF)
+
+    def _get_data(self, experiment, data):
+        return data.X, self.svf(data.X, data.Y).reshape(-1, 1)
 
 
 @define

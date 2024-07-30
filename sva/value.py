@@ -50,6 +50,7 @@ def svf(X, Y, sd=None, multiplier=1.0, proximity_penalty=None):
     Y_dist = distance_matrix(Y, Y)
 
     v = Y_dist * np.exp(-X_dist / sd)  # Removed factor of 2
+    # Also removed the X_dist^2 in favor of X_dist
 
     if proximity_penalty is not None:
         l_max = distance.min(axis=1).max()

@@ -1,0 +1,9 @@
+likelihood:
+  _target_: gpytorch.likelihoods.GaussianLikelihood
+mean_module:
+  _target_: gpytorch.means.ConstantMean
+covar_module:
+  kernel: matern
+  lengthscale: 1.0
+transform_input: true
+transform_output: true

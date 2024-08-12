@@ -1,0 +1,14 @@
+_target_: sva.campaign.FixedPolicy
+
+acquisition_function:
+  _target_: botorch.acquisition.analytic.ExpectedImprovement
+  _partial_: true
+
+calculate_model_optimum: True
+penalty_function_factory: null
+penalty_strength: 0.0
+
+defaults:
+  - _self_
+  - common.yaml
+  - /models@model_factory: single_task_gp.yaml

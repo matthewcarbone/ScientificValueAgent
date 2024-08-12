@@ -1,0 +1,4 @@
+_target_: sva.campaign.RandomPolicy
+n_max: 100
+prime_kwargs:
+  protocol: "cold_start"

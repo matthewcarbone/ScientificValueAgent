@@ -1,0 +1,5 @@
+_target_: sva.models.EasySingleTaskGP.from_default
+_partial_: true
+defaults:
+  - _self_
+  - common.yaml

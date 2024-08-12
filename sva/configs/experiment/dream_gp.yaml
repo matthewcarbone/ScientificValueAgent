@@ -1,0 +1,6 @@
+_target_: sva.experiments.GPDream.from_default
+gp_model_params:
+  kernel: rbf
+  lengthscale: 0.2
+d: 2
+seed: 2

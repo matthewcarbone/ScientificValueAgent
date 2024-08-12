@@ -1,0 +1,12 @@
+# Common elements to most of the policies
+
+n_max: 100
+model_fitting_function:
+  _target_: sva.models.fit_EasyGP_mll
+  _partial_: true
+optimize_kwargs:
+  q: 1
+  num_restarts: 20
+  raw_samples: 100
+save_acquisition_function: false
+save_model: false

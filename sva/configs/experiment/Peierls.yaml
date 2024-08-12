@@ -1,0 +1,8 @@
+_target_: sva.experiments.ggce.ggce.Peierls
+phonon_frequency: 1.0
+phonon_extent: 2
+phonon_number: 3
+dimensionless_coupling_strength: 1.0
+hopping: 1.0
+eta: 0.05
+y_log: true

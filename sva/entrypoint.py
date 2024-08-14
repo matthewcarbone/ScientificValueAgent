@@ -28,6 +28,7 @@ def run(config):
 
     # Initialize the campaign
     campaign = Campaign(
+        data=data,
         experiment=experiment,
         policy=policy,
         seed=config.seed,

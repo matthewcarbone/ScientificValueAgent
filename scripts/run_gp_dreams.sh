@@ -27,7 +27,7 @@ N_MAX="100"
 # a comput cluster
 for exp_length_scale in "${EXPERIMENT_LENGTH_SCALES[@]}"; do
 	tsp sva_run -m hydra/launcher=joblib \
-		"$SEED_RANGE" \
+		seed="$SEED_RANGE" \
 		experiment=dream_gp \
 		experiment.gp_model_params.kernel="$EXPERIMENT_KERNEL" \
 		experiment.d="$DIMENSION" \

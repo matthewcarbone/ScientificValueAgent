@@ -1,0 +1,4 @@
+prime_kwargs:
+  protocol: "LatinHypercube"
+  kwargs:
+    n: 5

@@ -8,7 +8,7 @@ from scipy.spatial import distance_matrix
 
 
 def default_asymmetric_value_function(
-    X, Y, sd=None, multiplier=1.0, characteristic_length="min"
+    X, Y, sd=None, multiplier=1.0, characteristic_length="min", density=False
 ):
     """The value of two datasets, X and Y. Both X and Y must have the same
     number of rows. The returned result is a value of value for each of the
@@ -29,6 +29,8 @@ def default_asymmetric_value_function(
     characteristic_length : {"min", "max", "mean", "median"}
         The operation to perform on the input data in order to get the
         characteristic length. Default is min.
+    density : bool
+        If True, normalizes each point by the local density of nearby points.
 
     Returns
     -------
@@ -58,9 +60,14 @@ def default_asymmetric_value_function(
 
     Y_dist = distance_matrix(Y, Y)
 
-    v = Y_dist * np.exp(-X_dist / sd)
+    w = np.exp(-X_dist / sd)
+    v = Y_dist * w
 
-    return v.mean(axis=1)
+    if not density:
+        return v.mean(axis=1)
+
+    # Otherwise, normalize
+    return v.mean(axis=1) / w.mean(axis=1)
 
 
 def symmetric_value_function(X, Y):

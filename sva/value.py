@@ -7,7 +7,9 @@ import numpy as np
 from scipy.spatial import distance_matrix
 
 
-def default_asymmetric_value_function(X, Y, sd=None, multiplier=1.0, modifiers=None):
+def default_asymmetric_value_function(
+    X, Y, sd=None, multiplier=1.0, characteristic_length="min"
+):
     """The value of two datasets, X and Y. Both X and Y must have the same
     number of rows. The returned result is a value of value for each of the
     data points.
@@ -24,8 +26,9 @@ def default_asymmetric_value_function(X, Y, sd=None, multiplier=1.0, modifiers=N
     multiplier : float, optional
         Multiplies the automatically derived length scale if ``sd`` is
         ``None``.
-    modifiers : list
-        A list of modifications to perform on the SVF.
+    characteristic_length : {"min", "max", "mean", "median"}
+        The operation to perform on the input data in order to get the
+        characteristic length. Default is min.
 
     Returns
     -------
@@ -39,7 +42,19 @@ def default_asymmetric_value_function(X, Y, sd=None, multiplier=1.0, modifiers=N
         # Automatic determination
         distance = X_dist.copy()
         distance[distance == 0.0] = np.inf
-        sd = distance.min(axis=1).reshape(1, -1) * multiplier
+        if characteristic_length == "min":
+            sd = distance.min(axis=1).reshape(1, -1) * multiplier
+        elif characteristic_length == "max":
+            # Why would one do this? I don't know. Maybe a control experiment?
+            sd = distance.max(axis=1).reshape(1, -1) * multiplier
+        elif characteristic_length == "mean":
+            sd = distance.mean(axis=1).reshape(1, -1) * multiplier
+        elif characteristic_length == "median":
+            sd = np.median(distance, axis=1).reshape(1, -1) * multiplier
+        else:
+            raise ValueError(
+                f"Unknown characteristic length {characteristic_length}"
+            )
 
     Y_dist = distance_matrix(Y, Y)
 

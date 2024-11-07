@@ -52,6 +52,13 @@ class Experiment(ABC, MSONable):
     metadata = field(factory=dict)
     noise = field(default=0.0)
     properties = field(default=None)
+    errorbars = field(default=None)
+
+    def __attrs_post_init__(self):
+        if self.noise == 0.0:
+            return
+        if isinstance(self.noise, callable) and self.errorbars is not None:
+            raise ValueError("noise cannot be set if errorbars is set")
 
     @noise.validator
     def validate_noise(self, _, value):
@@ -188,11 +195,14 @@ class Experiment(ABC, MSONable):
         """The result of the experiment."""
 
         y = self.truth(x)
-        if isinstance(self.noise, (float, int)) and self.noise > 0.0:
-            dy = np.random.normal(loc=0.0, scale=self.noise, size=y.shape)
-            return y + dy
-        elif callable(self.noise):
-            scale = self.noise(x)
-            dy = np.random.normal(loc=0.0, scale=scale, size=y.shape)
-            return y + dy
-        return y
+        if self.errorbars is None:
+            if isinstance(self.noise, (float, int)) and self.noise > 0.0:
+                dy = np.random.normal(loc=0.0, scale=self.noise, size=y.shape)
+                return y + dy, np.zeros_like(y)
+            elif callable(self.noise):
+                scale = self.noise(x)
+                dy = np.random.normal(loc=0.0, scale=scale, size=y.shape)
+                return y + dy, np.zeros_like(y)
+            return y, np.zeros_like(y)
+        else:
+            return y, self.errorbars(x)

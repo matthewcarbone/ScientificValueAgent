@@ -1,3 +1,4 @@
+import warnings
 from collections import defaultdict
 from functools import cache
 from pathlib import Path
@@ -106,7 +107,8 @@ def _compute_all_metrics(campaign):
             for md in campaign.data.metadata[N_start:]
         ]
     ).squeeze()
-    experiment_at_model_maxima_x = experiment(model_maxima_x)
+    with warnings.catch_warnings(record=True) as w:
+        experiment_at_model_maxima_x = experiment(model_maxima_x)
     relative_opportunity_cost = np.abs(
         experiment_maxima - experiment_at_model_maxima_x
     ) / np.abs(experiment_maxima)
@@ -137,7 +139,7 @@ def compute_metrics(data):
 
     results = defaultdict(dict)
 
-    for acqf, list_of_campaigns in data.items():
+    for acqf, list_of_campaigns in tqdm(data.items()):
         m = [_compute_all_metrics(c) for c in list_of_campaigns]
 
         for metric in m[0].keys():

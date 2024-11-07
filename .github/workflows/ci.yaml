@@ -16,13 +16,13 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]  # , macOS-latest
-        python-version: [3.9]
+        python-version: [3.11]
 
     steps:
 
-    - uses: actions/checkout@v3
-      with:
-        submodules: recursive
+    # - uses: actions/checkout@v3
+    #   with:
+    #     submodules: recursive
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
@@ -38,17 +38,14 @@ jobs:
       run: |
         pytest -v --cov --cov-report xml sva/_tests
 
-  black:
-    name: Run Black code quality check
-
+  ruff:
+    name: Run Ruff code quality check
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v3
-      - uses: rickstaa/action-black@v1
+      - uses: actions/checkout@v4
+      - uses: chartboost/ruff-action@v1
         with:
-          black_args: "sva/ --check"
-          fail_on_error: "true"
+          src: './sva'
 
   flake8_py3:
     name: Run flake8 code quality check
@@ -57,12 +54,12 @@ jobs:
 
     steps:
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
-          python-version: 3.9
+          python-version: 3.11
 
       - name: Install flake8
         run: pip install flake8

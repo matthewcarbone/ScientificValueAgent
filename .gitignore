@@ -1,7 +1,5 @@
 *.gif
 *.json
-*.yaml
-!example_jobs.yaml
 !.pre-commit-config.yaml
 !.github/workflows/*.yaml
 *.yml

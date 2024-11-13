@@ -1,6 +1,6 @@
 from pathlib import Path
-import pytest
 
+import pytest
 from yaml import safe_load
 
 from sva.experiments import execute

@@ -7,9 +7,7 @@ import numpy as np
 from scipy.spatial import distance_matrix
 
 
-def default_asymmetric_value_function(
-    X, Y, sd=None, multiplier=1.0, characteristic_length="min", density=False
-):
+def default_asymmetric_value_function(X, Y, sd=None, multiplier=1.0, characteristic_length="min", density=False):
     """The value of two datasets, X and Y. Both X and Y must have the same
     number of rows. The returned result is a value of value for each of the
     data points.
@@ -43,9 +41,8 @@ def default_asymmetric_value_function(
     if sd is None:
         # Automatic determination
         distance = X_dist.copy()
-        distance[distance == 0.0] = np.inf
         if characteristic_length == "min":
-            sd = distance.min(axis=1).reshape(1, -1) * multiplier
+            sd = np.nanmin(np.where(distance == 0, np.nan, distance), axis=1).reshape(1, -1) * multiplier
         elif characteristic_length == "max":
             # Why would one do this? I don't know. Maybe a control experiment?
             sd = distance.max(axis=1).reshape(1, -1) * multiplier
@@ -54,9 +51,7 @@ def default_asymmetric_value_function(
         elif characteristic_length == "median":
             sd = np.median(distance, axis=1).reshape(1, -1) * multiplier
         else:
-            raise ValueError(
-                f"Unknown characteristic length {characteristic_length}"
-            )
+            raise ValueError(f"Unknown characteristic length {characteristic_length}")
 
     Y_dist = distance_matrix(Y, Y)
 
@@ -87,8 +82,7 @@ def symmetric_value_function(X, Y):
     X_dist = distance_matrix(X, X)  # (N, N)
 
     distance = X_dist.copy()
-    distance[distance == 0.0] = np.inf
-    sd = distance.min(axis=1, keepdims=True)  # (N, 1)
+    sd = np.nanmin(np.where(distance == 0, np.nan, distance), axis=1, keepdims=True)  # (N, 1)
 
     # Length scale
     ls = sd * sd.T  # Symmetric piece (N, 1) * (1, N) = (N, N)

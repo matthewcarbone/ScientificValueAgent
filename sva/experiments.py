@@ -664,7 +664,7 @@ class Experiment(MSONable):
                 )
             else:
                 kernel = gpytorch.kernels.ScaleKernel(
-                    _kernel(*self._kernel_kwargs)
+                    _kernel(**self._kernel_kwargs)
                 )
                 gp = FixedNoiseGP(
                     train_X=train_X,

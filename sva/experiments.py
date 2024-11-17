@@ -12,7 +12,7 @@ import torch
 from botorch.acquisition.penalized import PenalizedAcquisitionFunction
 from botorch.exceptions.errors import ModelFittingError
 from botorch.fit import fit_gpytorch_mll
-from botorch.models import SingleTaskGP
+from botorch.models import FixedNoiseGP, SingleTaskGP
 from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
 from botorch.optim import optimize_acqf
@@ -576,6 +576,7 @@ class Experiment(MSONable):
         fit_via_Adam_kwargs=dict(),
         record_gp_every=0,
         points_per_dimension_full_grid=None,
+        fixed_noise=None,
     ):
         """Runs the experiment.
 
@@ -643,21 +644,37 @@ class Experiment(MSONable):
 
             # Initialize the GP
             mean_prior = gpytorch.means.ConstantMean()
-            kernel = gpytorch.kernels.ScaleKernel(
-                _kernel(**self._kernel_kwargs),
-                outputscale_prior=gpytorch.priors.HalfCauchyPrior(scale=0.05),
-            )
-            likelihood = gpytorch.likelihoods.GaussianLikelihood()
-            gp = SingleTaskGP(
-                train_X=train_X,
-                train_Y=train_Y,
-                likelihood=likelihood,
-                mean_module=mean_prior,
-                covar_module=kernel,
-                input_transform=i_transform,
-                outcome_transform=o_transform,
-                **model_kwargs,
-            )
+            if fixed_noise is None:
+                kernel = gpytorch.kernels.ScaleKernel(
+                    _kernel(**self._kernel_kwargs),
+                    outputscale_prior=gpytorch.priors.HalfCauchyPrior(
+                        scale=0.05
+                    ),
+                )
+                likelihood = gpytorch.likelihoods.GaussianLikelihood()
+                gp = SingleTaskGP(
+                    train_X=train_X,
+                    train_Y=train_Y,
+                    likelihood=likelihood,
+                    mean_module=mean_prior,
+                    covar_module=kernel,
+                    input_transform=i_transform,
+                    outcome_transform=o_transform,
+                    **model_kwargs,
+                )
+            else:
+                kernel = gpytorch.kernels.ScaleKernel(
+                    _kernel(*self._kernel_kwargs)
+                )
+                gp = FixedNoiseGP(
+                    train_X=train_X,
+                    train_Y=train_Y,
+                    train_Yvar=torch.ones_like(train_Y) * fixed_noise,
+                    covar_module=kernel,
+                    input_transform=i_transform,
+                    outcome_transform=o_transform,
+                    **model_kwargs,
+                )
 
             # Fit the GP
             losses = None

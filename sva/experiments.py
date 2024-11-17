@@ -1,30 +1,29 @@
+import json
 from copy import deepcopy
 from functools import cache
 from itertools import product
-from joblib import delayed, Parallel
-import json
 from pathlib import Path
 from time import perf_counter
 from warnings import warn
 
+import gpytorch
+import numpy as np
+import torch
 from botorch.acquisition.penalized import PenalizedAcquisitionFunction
 from botorch.exceptions.errors import ModelFittingError
 from botorch.fit import fit_gpytorch_mll
+from botorch.models import SingleTaskGP
 from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
-from botorch.models import SingleTaskGP
 from botorch.optim import optimize_acqf
-import gpytorch
-import numpy as np
+from joblib import Parallel, delayed
 from monty.json import MSONable
 from scipy.spatial import distance_matrix
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-import torch
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from tqdm import tqdm
 
 from sva import __version__
 from sva.utils import get_function_from_signature
-
 
 torch.set_default_dtype(torch.float64)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -419,7 +418,6 @@ class Experiment(MSONable):
             self._bounds = [[x0, xf] for x0, xf in zip(xmin, xmax)]
 
     def _set_path(self):
-        self._path = None
         if self._name is not None:
             self._path = str(Path(self._name + ".json"))
 
@@ -464,6 +462,7 @@ class Experiment(MSONable):
         self._scale_inputs_MinMax = scale_inputs_MinMax
         self._scale_outputs_Standard = scale_outputs_Standard
         self._name = name
+        self._path = path
         self._set_path()
 
     def _get_train_X(self):
@@ -645,7 +644,8 @@ class Experiment(MSONable):
             # Initialize the GP
             mean_prior = gpytorch.means.ConstantMean()
             kernel = gpytorch.kernels.ScaleKernel(
-                _kernel(**self._kernel_kwargs)
+                _kernel(**self._kernel_kwargs),
+                outputscale_prior=gpytorch.priors.HalfCauchyPrior(scale=0.05),
             )
             likelihood = gpytorch.likelihoods.GaussianLikelihood()
             gp = SingleTaskGP(

@@ -10,11 +10,15 @@ from scipy.spatial import distance_matrix
 from sva.monty.json import MSONable
 
 
-def sigmoid(d, x0, a):
-    return 1.0 / (1.0 + np.exp(-(d - x0) / a))
-
-
-def svf(X, Y, sd=None, multiplier=1.0, proximity_penalty=None):
+def svf(
+    X,
+    Y,
+    sd=None,
+    multiplier=1.0,
+    characteristic_length="min",
+    density=False,
+    symmetric=False,
+):
     """The value of two datasets, X and Y. Both X and Y must have the same
     number of rows. The returned result is a value of value for each of the
     data points.
@@ -31,7 +35,14 @@ def svf(X, Y, sd=None, multiplier=1.0, proximity_penalty=None):
     multiplier : float, optional
         Multiplies the automatically derived length scale if ``sd`` is
         ``None``.
-    proximity_penalty : float, optional
+    characteristic_length : {"min", "max", "mean", "median"}
+        The operation to perform on the input data in order to get the
+        characteristic length. Default is min.
+    density : bool
+        If True, normalizes each point by the local density of nearby points.
+    symmetric : bool
+        If True, uses the symmetric value function. Otherwise, uses an
+        asymmetric representation. Default is False.
 
     Returns
     -------
@@ -41,22 +52,43 @@ def svf(X, Y, sd=None, multiplier=1.0, proximity_penalty=None):
 
     X_dist = distance_matrix(X, X)
 
-    # If sd is None, we automatically determine the length scale from the data
     if sd is None:
+        # Automatic determination
         distance = X_dist.copy()
-        distance[distance == 0.0] = np.inf
-        sd = distance.min(axis=1).reshape(1, -1) * multiplier
+        if characteristic_length == "min":
+            sd = (
+                np.nanmin(
+                    np.where(distance == 0, np.nan, distance), axis=1
+                ).reshape(1, -1)
+                * multiplier
+            )
+        elif characteristic_length == "max":
+            # Why would one do this? I don't know. Maybe a control experiment?
+            sd = distance.max(axis=1).reshape(1, -1) * multiplier
+        elif characteristic_length == "mean":
+            sd = distance.mean(axis=1).reshape(1, -1) * multiplier
+        elif characteristic_length == "median":
+            sd = np.median(distance, axis=1).reshape(1, -1) * multiplier
+        else:
+            raise ValueError(
+                f"Unknown characteristic length {characteristic_length}"
+            )
 
     Y_dist = distance_matrix(Y, Y)
 
-    v = Y_dist * np.exp(-X_dist / sd)  # Removed factor of 2
-    # Also removed the X_dist^2 in favor of X_dist
+    if symmetric:
+        ls = np.sqrt(sd * sd.T)  # Symmetric piece (N, 1) * (1, N) = (N, N)
+    else:
+        ls = sd
 
-    if proximity_penalty is not None:
-        l_max = distance.min(axis=1).max()
-        v = v * sigmoid(X_dist, l_max / proximity_penalty, 0.05)
+    w = np.exp(-X_dist / ls)
+    v = Y_dist * w
 
-    return v.mean(axis=1)
+    if not density:
+        return v.mean(axis=1)
+
+    # Otherwise, normalize
+    return v.mean(axis=1) / w.mean(axis=1)
 
 
 @define

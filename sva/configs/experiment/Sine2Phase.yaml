@@ -1,0 +1,6 @@
+_target_: sva.experiments.Sine2Phase
+x0: 0.5 
+a: 100.0 
+gaussian_x0: 0.5
+gaussian_sd: 0.22
+

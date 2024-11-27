@@ -1,13 +1,13 @@
 defaults:
   - _self_
   - experiment: ???
-  - policy: fixed.yaml
+  - policy: sva.yaml
   - paths: default.yaml
   - data: default.yaml
   - hydra: default.yaml
 
 # name of the runs
-name: misc
+name: testing
 
 # Seed for random number generators in pytorch, numpy and python.random
 # this seed applies to everything and is propogated through other experiments

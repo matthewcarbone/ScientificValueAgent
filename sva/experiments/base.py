@@ -194,15 +194,18 @@ class Experiment(ABC, MSONable):
     def __call__(self, x):
         """The result of the experiment."""
 
+        # Truth gets the noiseless version of the experiment
         y = self.truth(x)
+
+        # Then, noise is applied
+        dy = 0.0
+        if isinstance(self.noise, (float, int)) and self.noise > 0.0:
+            dy = np.random.normal(loc=0.0, scale=self.noise, size=y.shape)
+        elif callable(self.noise):
+            scale = self.noise(x)
+            dy = np.random.normal(loc=0.0, scale=scale, size=y.shape)
+
+        # Finally, errorbars
         if self.errorbars is None:
-            if isinstance(self.noise, (float, int)) and self.noise > 0.0:
-                dy = np.random.normal(loc=0.0, scale=self.noise, size=y.shape)
-                return y + dy, np.zeros_like(y)
-            elif callable(self.noise):
-                scale = self.noise(x)
-                dy = np.random.normal(loc=0.0, scale=scale, size=y.shape)
-                return y + dy, np.zeros_like(y)
-            return y, np.zeros_like(y)
-        else:
-            return y, self.errorbars(x)
+            return y + dy, None
+        return y + dy, self.errorbars(x)

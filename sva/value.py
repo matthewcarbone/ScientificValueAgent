@@ -93,9 +93,15 @@ def svf(
 
 @define
 class SVF(MSONable):
-    sd = field(default=None)
-    multiplier = field(default=1.0)
-    proximity_penalty = field(default=None)
+    params = field(
+        default={
+            "sd": None,
+            "multiplier": 1.0,
+            "characteristic_length": "min",
+            "density": False,
+            "symmetric": False,
+        }
+    )
 
     def __call__(self, X, Y):
-        return svf(X, Y, self.sd, self.multiplier, self.proximity_penalty)
+        return svf(X, Y, **self.params)

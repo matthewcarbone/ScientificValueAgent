@@ -68,10 +68,10 @@ class RandomPolicy(Policy):
 
     def step(self, experiment, data):
         X = experiment.get_random_coordinates(n=self.n_max)
-        Y = experiment(X)
+        Y, Y_std = experiment(X)
         metadata = {"experiment": experiment.name, "policy": self.name}
         metadata = [metadata] * X.shape[0]
-        data.update(X, Y, metadata)
+        data.update(X, Y, Y_std, metadata)
         return PolicyState()
 
 
@@ -83,10 +83,10 @@ class GridPolicy(Policy):
     def step(self, experiment, data):
         ppd = ceil((self.n_max) ** (1.0 / experiment.n_input_dim))
         X = experiment.get_dense_coordinates(ppd=ppd)
-        Y = experiment(X)
+        Y, Y_std = experiment(X)
         metadata = {"experiment": experiment.name, "policy": self.name}
         metadata = [metadata] * X.shape[0]
-        data.update(X, Y, metadata)
+        data.update(X, Y, Y_std, metadata)
         return PolicyState()
 
 
@@ -116,13 +116,14 @@ class RequiresBayesOpt(Policy):
         unorthodox transformations like SVA."""
 
         if data.N > 0:
-            return data.X, data.Y
+            return data.X, data.Y, data.Y_std
 
         # Otherwise, it's cold start
         # We provide the model with
         X = torch.empty(0, experiment.n_input_dim)
         Y = torch.empty(0, 1)
-        return X, Y
+        Y_std = torch.empty(0, 1)
+        return X, Y, Y_std
 
     @abstractmethod
     def _get_acqf_at_state(self, experiment, data): ...
@@ -138,9 +139,9 @@ class RequiresBayesOpt(Policy):
 
     def step(self, experiment, data):
         # Get the model and the data
-        X, Y = self._get_data(experiment, data)
+        X, Y, Y_std = self._get_data(experiment, data)
         N = X.shape[0]
-        model = self.model_factory(X, Y)
+        model = self.model_factory(X, Y, Y_std)
 
         # Fit the model if we have at least 3 data points
         # Otherwise, we simply use the default length scale (which is 1).
@@ -178,7 +179,7 @@ class RequiresBayesOpt(Policy):
         logger.debug(f"Next points {array_str} with value {v}")
 
         # "Run" the next experiment
-        Y = experiment(X)
+        Y, Y_std = experiment(X)
 
         # Get the metadata
         metadata = self._get_metadata(experiment, data)
@@ -194,7 +195,7 @@ class RequiresBayesOpt(Policy):
 
         # Note need to actually copy metadata for each of the samples in the
         # case that q > 1
-        data.update(X, Y, [metadata for _ in range(X.shape[0])])
+        data.update(X, Y, Y_std, [metadata for _ in range(X.shape[0])])
 
         return PolicyState()
 
@@ -240,7 +241,9 @@ class FixedSVAPolicy(FixedPolicy):
     svf = field(factory=SVF)
 
     def _get_data(self, experiment, data):
-        return data.X, self.svf(data.X, data.Y).reshape(-1, 1)
+        # TODO: propagation of errors for SVF!
+        # Right now, we're just returning None all the time!
+        return data.X, self.svf(data.X, data.Y).reshape(-1, 1), None
 
 
 @define
@@ -252,6 +255,7 @@ class CampaignData(MSONable):
 
     X: np.ndarray = field(default=None)
     Y: np.ndarray = field(default=None)
+    Y_std: np.ndarray = field(default=None)
     metadata = field(factory=list)
 
     @property
@@ -295,10 +299,16 @@ class CampaignData(MSONable):
         else:
             self.Y = Y
 
+    def update_Y_std(self, Y_std):
+        if self.Y_std is not None:
+            self.Y_std = np.concatenate([self.Y_std, Y_std], axis=0)
+        else:
+            self.Y_std = Y_std
+
     def update_metadata(self, new_metadata):
         self.metadata.extend(new_metadata)
 
-    def update(self, X, Y, metadata=None):
+    def update(self, X, Y, Y_std=None, metadata=None):
         """Helper method for updating the data attribute with new data.
 
         Parameters
@@ -317,6 +327,8 @@ class CampaignData(MSONable):
 
         self.update_X(X)
         self.update_Y(Y)
+        if Y_std is None:
+            self.update_Y_std(Y_std)
         self.update_metadata(metadata)
 
     def prime(self, experiment, protocol, seed=None, **kwargs):
@@ -351,8 +363,10 @@ class CampaignData(MSONable):
         else:
             raise NotImplementedError(f"Unknown provided protocol {protocol}")
 
+        Y, Y_std = experiment(X)
+
         d = {"experiment": experiment.name, "policy": protocol}
-        self.update(X, experiment(X), metadata=[d] * X.shape[0])
+        self.update(X, Y, Y_std, metadata=[d] * X.shape[0])
 
     def __eq__(self, exp):
         # XOR for when things aren't initialized

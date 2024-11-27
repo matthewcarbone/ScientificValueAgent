@@ -58,9 +58,9 @@ format_mapping = {
     "DEBUG": "[<lvl>D</>] [{name}:{function}:{line}] <lvl>{message}</>",
     "INFO": "[<lvl>I</>] <lvl>{message}</>",
     "SUCCESS": "[<lvl>S</>] <lvl>{message}</>",
-    "WARNING": "[<lvl>W</>] <lvl>{message}</>",
-    "ERROR": "[<lvl>E</>] <lvl>{message}</>",
-    "CRITICAL": "[<lvl>C</>] <lvl>{message}</>",
+    "WARNING": "[<lvl>W</>] [{name}:{function}:{line}] <lvl>{message}</>",
+    "ERROR": "[<lvl>E</>] [{name}:{function}:{line}] <lvl>{message}</>",
+    "CRITICAL": "[<lvl>C</>] [{name}:{function}:{line}] <lvl>{message}</>",
 }
 
 
@@ -263,7 +263,7 @@ class CustomWarning:
 def log_warnings(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
-        with catch_warnings(record=True, action="once") as w:
+        with catch_warnings(record=True) as w:
             output = f(*args, **kwargs)
         w = [CustomWarning(ww) for ww in w]
         c = Counter(w)

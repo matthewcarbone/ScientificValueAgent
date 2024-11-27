@@ -15,6 +15,7 @@ from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
 from botorch.optim import optimize_acqf
 
+from sva.logger import logger
 from sva.models import DEVICE
 from sva.monty.json import MSONable
 from sva.utils import Timer, get_coordinates
@@ -260,10 +261,10 @@ def sample(gp, X, samples=20, observation_noise=False):
 
 
 @define
-class GPMixin(MSONable):
+class GP(MSONable):
     X = field()
     Y = field()
-    Yvar = field()
+    Y_var = field()
     default_fitting_method = field(default="fit_mll")
     default_fitting_kwargs = field(factory=dict)
 
@@ -283,7 +284,7 @@ class GPMixin(MSONable):
         if value.shape[1] != 1:
             raise ValueError("Y must have only one target output")
 
-    @Yvar.validator  # noqa
+    @Y_var.validator  # noqa
     def valid_Y_noise(self, _, value):
         if value is None:
             return
@@ -400,7 +401,7 @@ def get_covar_module(d):
 
 
 @define(kw_only=True)
-class EasySingleTaskGP(GPMixin):
+class EasySingleTaskGP(GP):
     model = field(validator=validators.instance_of(SingleTaskGP))
 
     @classmethod
@@ -408,6 +409,7 @@ class EasySingleTaskGP(GPMixin):
         cls,
         X,
         Y,
+        Y_std=None,
         likelihood=gpytorch.likelihoods.GaussianLikelihood(),
         mean_module=gpytorch.means.ConstantMean(),
         covar_module=gpytorch.kernels.ScaleKernel(
@@ -419,6 +421,11 @@ class EasySingleTaskGP(GPMixin):
         **model_kwargs,
     ):
         """Gets a SingleTaskGP from some sensible default parameters."""
+
+        if Y_std:
+            logger.warning(
+                "Y_std was passed to a SingleTaskGP and will be ignored"
+            )
 
         if X is None and Y is None:
             if input_dims is None:
@@ -452,7 +459,7 @@ class EasySingleTaskGP(GPMixin):
             **model_kwargs,
         )
 
-        return deepcopy(cls(X=X, Y=Y, Yvar=None, model=model))
+        return deepcopy(cls(X=X, Y=Y, Y_var=None, model=model))
 
     def __eq__(self, x):
         # simple equality comparison for GP's, we just look at the parameters
@@ -462,7 +469,7 @@ class EasySingleTaskGP(GPMixin):
 
 
 @define(kw_only=True)
-class EasyFixedNoiseGP(GPMixin):
+class EasyFixedNoiseGP(GP):
     model = field(validator=validators.instance_of(FixedNoiseGP))
 
     @classmethod
@@ -470,7 +477,7 @@ class EasyFixedNoiseGP(GPMixin):
         cls,
         X,
         Y,
-        Yvar,
+        Y_std,
         mean_module=gpytorch.means.ConstantMean(),
         covar_module=gpytorch.kernels.ScaleKernel(
             gpytorch.kernels.MaternKernel()
@@ -484,11 +491,13 @@ class EasyFixedNoiseGP(GPMixin):
         if isinstance(covar_module, dict):
             covar_module = get_covar_module(covar_module)
 
+        Y_var = Y_std**2
+
         model = get_simple_model(
             "FixedNoiseGP",
             X,
             Y,
-            Yvar,
+            Y_var,
             None,  # likelihood
             mean_module,
             covar_module,
@@ -497,11 +506,11 @@ class EasyFixedNoiseGP(GPMixin):
             **model_kwargs,
         )
 
-        return deepcopy(cls(X=X, Y=Y, Yvar=Yvar, model=model))
+        return deepcopy(cls(X=X, Y=Y, Y_var=Y_var, model=model))
 
 
 @define(kw_only=True)
-class EasyMultiTaskGP(GPMixin):
+class EasyMultiTaskGP(GP):
     model = field(validator=validators.instance_of(MultiTaskGP))
 
     @classmethod
@@ -509,7 +518,7 @@ class EasyMultiTaskGP(GPMixin):
         cls,
         X,
         Y,
-        Yvar=None,
+        Y_var=None,
         likelihood=gpytorch.likelihoods.GaussianLikelihood(),
         mean_module=gpytorch.means.ConstantMean(),
         covar_module=gpytorch.kernels.ScaleKernel(
@@ -529,7 +538,7 @@ class EasyMultiTaskGP(GPMixin):
             "MultiTaskGP",
             X,
             Y,
-            Yvar,
+            Y_var,
             likelihood,
             mean_module,
             covar_module,
@@ -539,4 +548,4 @@ class EasyMultiTaskGP(GPMixin):
             **model_kwargs,
         )
 
-        return deepcopy(cls(X=X, Y=Y, Yvar=Yvar, model=model))
+        return deepcopy(cls(X=X, Y=Y, Y_var=Y_var, model=model))

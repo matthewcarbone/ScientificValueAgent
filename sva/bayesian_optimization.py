@@ -123,7 +123,7 @@ def parse_acquisition_function(acqf):
             }
 
     elif isinstance(acqf, partial):
-        name = ACQF_ALIASES_REVERSED[str(acqf.name)]
+        name = ACQF_ALIASES_REVERSED[str(acqf.func.__name__)]
         requires_best_f = "EI" in name or "PI" in name
         return {
             "acqf_factory": acqf,

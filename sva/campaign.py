@@ -185,7 +185,10 @@ class RequiresBayesOpt(Policy):
         metadata = self._get_metadata(experiment, data)
 
         if self.calculate_model_optimum:
-            metadata["model_optimum"] = model.find_optima(experiment.domain)
+            o, v = model.find_optima(experiment.domain)
+            o = o.cpu().numpy()
+            v = v.cpu().numpy()
+            metadata["model_optimum"] = (o, v)
 
         if self.save_acquisition_function:
             metadata["acquisition_function"] = deepcopy(acqf)

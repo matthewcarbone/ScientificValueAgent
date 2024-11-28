@@ -341,7 +341,7 @@ class GP(MSONable):
             kwargs["raw_samples"] = 1000
 
         acqf = UpperConfidenceBound(self.model, beta=0.0)
-        domain = torch.FloatTensor(domain)
+        domain = torch.FloatTensor(domain).to(DEVICE)
         return optimize_acqf(acqf, bounds=domain, **kwargs)
 
     def dream(self, domain, ppd=20):

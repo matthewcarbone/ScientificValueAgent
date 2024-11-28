@@ -4,7 +4,7 @@ import hydra
 from hydra.utils import instantiate
 
 from sva.campaign import Campaign, CampaignData
-from sva.logger import log_warnings, logger_setup
+from sva.logger import log_warnings, logger, logger_setup
 
 
 @log_warnings
@@ -19,9 +19,8 @@ def run(config):
     # Initialize the data object
     data = CampaignData()
     data_p = config.data.prime_kwargs
-    data.prime(
-        experiment, protocol=data_p.protocol, seed=config.seed, **data_p.kwargs
-    )
+    kwargs = data_p.kwargs or {}
+    data.prime(experiment, protocol=data_p.protocol, seed=config.seed, **kwargs)
 
     # Initialize the policy
     policy = instantiate(config.policy, _convert_="partial")

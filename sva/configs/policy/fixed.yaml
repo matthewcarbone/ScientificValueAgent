@@ -11,4 +11,4 @@ penalty_strength: 0.0
 defaults:
   - _self_
   - common.yaml
-  - /models@model_factory: single_task_gp.yaml
+  - /models@model_factory: strict_prior_single_task_gp.yaml

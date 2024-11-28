@@ -3,7 +3,7 @@ defaults:
   - experiment: ???
   - policy: sva.yaml
   - paths: default.yaml
-  - data: default.yaml
+  - data: latin_hypercube.yaml
   - hydra: default.yaml
 
 # name of the runs

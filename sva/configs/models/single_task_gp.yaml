@@ -1,5 +1,7 @@
 _target_: sva.models.EasySingleTaskGP.from_default
 _partial_: true
+covar_module:
+  kernel: matern
 defaults:
   - _self_
   - common.yaml

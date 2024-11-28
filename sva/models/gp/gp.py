@@ -147,7 +147,9 @@ def get_simple_model(
     else:
         raise ValueError(f"Invalid model type {model_type}")
 
-    return deepcopy(model)
+    model = deepcopy(model)
+    model = model.to(DEVICE)
+    return model
 
 
 def fit_gp_gpytorch_mll_(gp, device=DEVICE, **fit_kwargs):

@@ -12,7 +12,7 @@ from botorch.optim import optimize_acqf
 
 from sva.bayesian_optimization import parse_acquisition_function
 from sva.logger import logger
-from sva.models import EasySingleTaskGP, fit_EasyGP_mll
+from sva.models import EasySingleTaskGP, fit_EasyGP_mll, DEVICE
 from sva.monty.json import MSONable
 from sva.utils import Timer, seed_everything
 from sva.value import SVF
@@ -172,9 +172,9 @@ class RequiresBayesOpt(Policy):
         acqf = self._penalize(acqf, experiment, data)
 
         # Get the bounds from the experiment and find the next point
-        bounds = torch.tensor(experiment.domain)
+        bounds = torch.tensor(experiment.domain).to(DEVICE)
         X, v = optimize_acqf(acqf, bounds=bounds, **self.optimize_kwargs)
-        X = X.numpy()
+        X = X.cpu().numpy()
         array_str = np.array_str(X, precision=5)
         logger.debug(f"Next points {array_str} with value {v}")
 

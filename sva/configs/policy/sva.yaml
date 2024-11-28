@@ -19,7 +19,7 @@ penalty_function_factory: null
 defaults:
   - _self_
   - common.yaml
-  - /models@model_factory: single_task_gp.yaml
+  - /models@model_factory: strict_prior_single_task_gp.yaml
 
 
 # This provides a good example of how to "inherit" from sva.yaml, though

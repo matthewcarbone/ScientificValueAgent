@@ -4,10 +4,10 @@ covar_module:
   _target_: gpytorch.kernels.ScaleKernel
   base_kernel:
     _target_: gpytorch.kernels.MaternKernel
-    outputscale_prior:
-      _target_: gpytorch.priors.GammaPrior
-      concentration: 2.0
-      rate: 100.0
+  outputscale_prior:
+    _target_: gpytorch.priors.GammaPrior
+    concentration: 2.0
+    rate: 100.0
 defaults:
   - _self_
   - common.yaml

@@ -1,9 +1,7 @@
-import warnings
 from collections import defaultdict
 from functools import cache
 from pathlib import Path
 
-import numpy as np
 from monty.json import load
 from tqdm import tqdm
 from yaml import safe_load
@@ -16,7 +14,7 @@ def load_hydra_result(path, load_configs=False, load_logs=False):
 
     d = path.parent
 
-    result = {"campaign": load_anything(path)}
+    result = {"campaign": load(path)}
 
     if load_configs:
         result["config"] = safe_load(open(d / ".hydra" / "config.yaml", "r"))
@@ -83,65 +81,67 @@ def sort_keys(keys):
     new_keys.extend(remaining_keys)
     if "EI" in keys:
         new_keys.append("EI")
+    if "PI" in keys:
+        new_keys.append("PI")
     return new_keys
 
 
-def _compute_all_metrics(campaign):
-    """A helper function for computing the metrics given a campaign."""
-
-    # We want N_start to be the actual experiment not the priming step
-    metadata = campaign.data.metadata
-    STARTS = ["random", "LatinHypercube"]
-    N_start = sum([xx["policy"] in STARTS for xx in metadata])
-    N_max = len(metadata)
-
-    # Get some information about the experiment
-    experiment = campaign.experiment
-    experiment_maxima = experiment.metadata["optimum"][1]
-
-    # Relative opportunity cost
-    model_maxima_x = np.array(
-        [
-            md["model_optimum"][0].numpy()
-            for md in campaign.data.metadata[N_start:]
-        ]
-    ).squeeze()
-    with warnings.catch_warnings(record=True) as w:
-        experiment_at_model_maxima_x = experiment(model_maxima_x)
-    relative_opportunity_cost = np.abs(
-        experiment_maxima - experiment_at_model_maxima_x
-    ) / np.abs(experiment_maxima)
-
-    # Values of the points themselves
-    sampled_y_values = campaign.data.Y.squeeze()
-    relative_sampled_y_values_cost = np.abs(
-        experiment_maxima - sampled_y_values
-    ) / np.abs(experiment_maxima)
-    relative_sampled_y_values_cost = relative_sampled_y_values_cost.numpy()
-    relative_sampled_y_values_cost = [
-        np.min(relative_sampled_y_values_cost[:ii])
-        for ii in range(N_start, N_max)
-    ]
-
-    metrics = {
-        "relative_opportunity_cost": relative_opportunity_cost.numpy().tolist(),
-        "relative_sampled_y_values_cost": relative_sampled_y_values_cost,
-    }
-
-    return metrics
-
-
-def compute_metrics(data):
-    """Computes the metrics on provided data. The data must be a dict with
-    keys corresponding to acquisition functions and values as lists of
-    campaigns (essentially, what is read by read_data above)."""
-
-    results = defaultdict(dict)
-
-    for acqf, list_of_campaigns in tqdm(data.items()):
-        m = [_compute_all_metrics(c) for c in list_of_campaigns]
-
-        for metric in m[0].keys():
-            results[acqf][metric] = np.array([xx[metric] for xx in m]).squeeze()
-
-    return results
+# def _compute_all_metrics(campaign):
+#     """A helper function for computing the metrics given a campaign."""
+#
+#     # We want N_start to be the actual experiment not the priming step
+#     metadata = campaign.data.metadata
+#     STARTS = ["random", "LatinHypercube"]
+#     N_start = sum([xx["policy"] in STARTS for xx in metadata])
+#     N_max = len(metadata)
+#
+#     # Get some information about the experiment
+#     experiment = campaign.experiment
+#     experiment_maxima = experiment.metadata["optimum"][1]
+#
+#     # Relative opportunity cost
+#     model_maxima_x = np.array(
+#         [
+#             md["model_optimum"][0].numpy()
+#             for md in campaign.data.metadata[N_start:]
+#         ]
+#     ).squeeze()
+#     with warnings.catch_warnings(record=True) as w:
+#         experiment_at_model_maxima_x = experiment(model_maxima_x)
+#     relative_opportunity_cost = np.abs(
+#         experiment_maxima - experiment_at_model_maxima_x
+#     ) / np.abs(experiment_maxima)
+#
+#     # Values of the points themselves
+#     sampled_y_values = campaign.data.Y.squeeze()
+#     relative_sampled_y_values_cost = np.abs(
+#         experiment_maxima - sampled_y_values
+#     ) / np.abs(experiment_maxima)
+#     relative_sampled_y_values_cost = relative_sampled_y_values_cost.numpy()
+#     relative_sampled_y_values_cost = [
+#         np.min(relative_sampled_y_values_cost[:ii])
+#         for ii in range(N_start, N_max)
+#     ]
+#
+#     metrics = {
+#         "relative_opportunity_cost": relative_opportunity_cost.numpy().tolist(),
+#         "relative_sampled_y_values_cost": relative_sampled_y_values_cost,
+#     }
+#
+#     return metrics
+#
+#
+# def compute_metrics(data):
+#     """Computes the metrics on provided data. The data must be a dict with
+#     keys corresponding to acquisition functions and values as lists of
+#     campaigns (essentially, what is read by read_data above)."""
+#
+#     results = defaultdict(dict)
+#
+#     for acqf, list_of_campaigns in tqdm(data.items()):
+#         m = [_compute_all_metrics(c) for c in list_of_campaigns]
+#
+#         for metric in m[0].keys():
+#             results[acqf][metric] = np.array([xx[metric] for xx in m]).squeeze()
+#
+#     return results

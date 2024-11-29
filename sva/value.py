@@ -18,6 +18,7 @@ def svf(
     density=False,
     symmetric=False,
     scale=True,
+    square_exponent=False,
 ):
     """The value of two datasets, X and Y. Both X and Y must have the same
     number of rows. The returned result is a value of value for each of the
@@ -45,6 +46,9 @@ def svf(
         asymmetric representation. Default is False.
     scale : bool
         If True, scales the data to the range [-1, 1].
+    square_exponent: bool
+        If True, squares the argument of the exponential weight of the
+        distances in the input space.
 
     Returns
     -------
@@ -83,7 +87,11 @@ def svf(
     else:
         ls = sd
 
-    w = np.exp(-X_dist / ls)
+    if square_exponent:
+        arg = -(X_dist**2) / ls**2
+    else:
+        arg = -X_dist / ls
+    w = np.exp(arg)
     v = Y_dist * w
 
     if not density:
@@ -103,6 +111,7 @@ def svf(
 
 @define
 class SVF(MSONable):
+    # TODO: really silly do to it this way
     params = field(
         default={
             "sd": None,
@@ -111,6 +120,7 @@ class SVF(MSONable):
             "density": False,
             "symmetric": False,
             "scale": True,
+            "square_exponent": False,
         }
     )
 

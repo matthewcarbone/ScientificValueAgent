@@ -9,11 +9,11 @@ from attrs import define, field
 from attrs.validators import ge, instance_of
 from botorch.acquisition.penalized import PenalizedAcquisitionFunction
 from botorch.optim import optimize_acqf
+from monty.json import MSONable
 
 from sva.bayesian_optimization import parse_acquisition_function
 from sva.logger import logger
-from sva.models import EasySingleTaskGP, fit_EasyGP_mll, DEVICE
-from sva.monty.json import MSONable
+from sva.models import DEVICE, EasySingleTaskGP, fit_EasyGP_mll
 from sva.utils import Timer, seed_everything
 from sva.value import SVF
 

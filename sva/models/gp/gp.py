@@ -14,10 +14,10 @@ from botorch.models import FixedNoiseGP, MultiTaskGP, SingleTaskGP
 from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
 from botorch.optim import optimize_acqf
+from monty.json import MSONable
 
 from sva.logger import logger
 from sva.models import DEVICE
-from sva.monty.json import MSONable
 from sva.utils import Timer, get_coordinates
 
 

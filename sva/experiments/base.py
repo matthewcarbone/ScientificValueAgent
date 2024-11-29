@@ -3,8 +3,8 @@ from abc import ABC, abstractmethod
 import numpy as np
 from attrs import define, field, frozen
 from attrs.validators import instance_of, optional
+from monty.json import MSONable
 
-from sva.monty.json import MSONable
 from sva.utils import (
     get_coordinates,
     get_latin_hypercube_points,

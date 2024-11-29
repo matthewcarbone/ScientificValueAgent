@@ -4,10 +4,9 @@ from functools import cache
 from pathlib import Path
 
 import numpy as np
+from monty.json import load
 from tqdm import tqdm
 from yaml import safe_load
-
-from sva.monty.json import load_anything
 
 
 def load_hydra_result(path, load_configs=False, load_logs=False):

@@ -13,6 +13,8 @@ svf:
     characteristic_length: min
     density: false
     symmetric: false
+    square_exponent: false
+
 
 penalty_function_factory: null
 

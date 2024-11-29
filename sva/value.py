@@ -17,6 +17,7 @@ def svf(
     characteristic_length="min",
     density=False,
     symmetric=False,
+    scale=True,
 ):
     """The value of two datasets, X and Y. Both X and Y must have the same
     number of rows. The returned result is a value of value for each of the
@@ -42,6 +43,8 @@ def svf(
     symmetric : bool
         If True, uses the symmetric value function. Otherwise, uses an
         asymmetric representation. Default is False.
+    scale : bool
+        If True, scales the data to the range [-1, 1].
 
     Returns
     -------
@@ -84,10 +87,18 @@ def svf(
     v = Y_dist * w
 
     if not density:
-        return v.mean(axis=1)
+        v = v.mean(axis=1)
+    else:
+        v = v.mean(axis=1) / w.mean(axis=1)
 
-    # Otherwise, normalize
-    return v.mean(axis=1) / w.mean(axis=1)
+    if scale:
+        b = 1.0
+        a = -1.0
+        vmin = v.min()
+        vmax = v.max()
+        v_scaled = (b - a) * (v - vmin) / (vmax - vmin) + a
+        return v_scaled
+    return v
 
 
 @define
@@ -99,8 +110,9 @@ class SVF(MSONable):
             "characteristic_length": "min",
             "density": False,
             "symmetric": False,
+            "scale": True,
         }
     )
 
     def __call__(self, X, Y):
-        return svf(X, Y, **self.params)
+        svf(X, Y, **self.params)

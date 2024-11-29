@@ -115,4 +115,4 @@ class SVF(MSONable):
     )
 
     def __call__(self, X, Y):
-        svf(X, Y, **self.params)
+        return svf(X, Y, **self.params)

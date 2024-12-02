@@ -34,7 +34,7 @@ class Simple5Phase(Experiment):
     properties = field(
         factory=lambda: ExperimentProperties(
             n_input_dim=2,
-            n_output_dim=1,
+            n_output_dim=5,
             domain=np.array([[0.0, 1.0], [0.0, 1.0]]).T,
         )
     )

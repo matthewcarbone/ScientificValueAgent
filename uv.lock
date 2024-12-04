@@ -2612,7 +2612,7 @@ wheels = [
 
 [[package]]
 name = "sva"
-version = "1.1.0.post247.dev0+a2e88ea"
+version = "1.1.1.dev0"
 source = { editable = "." }
 dependencies = [
     { name = "attrs" },

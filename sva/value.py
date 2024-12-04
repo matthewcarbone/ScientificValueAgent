@@ -9,6 +9,26 @@ from monty.json import MSONable
 from scipy.spatial import distance_matrix
 
 
+def distance_matrix_pbc_vectorized(coords, box_side_lengths):
+    """
+    Vectorized calculation of pairwise distances under periodic boundary conditions.
+
+    Parameters:
+        coords (numpy.ndarray): NxD array of N points in D-dimensional space.
+        box_length (float): Length of the sides of the simulation box.
+
+    Returns:
+        numpy.ndarray: NxN matrix of pairwise distances.
+    """
+    coords = np.array(coords)
+    delta = coords[:, np.newaxis, :] - coords[np.newaxis, :, :]
+    box_side_lengths = box_side_lengths.reshape(1, 1, -1)
+    assert box_side_lengths.shape[-1] == delta.shape[-1]
+    delta = delta - np.rint(delta / box_side_lengths) * box_side_lengths
+    dist_matrix = np.sqrt((delta**2).sum(axis=-1))
+    return dist_matrix
+
+
 def svf(
     X,
     Y,
@@ -19,6 +39,8 @@ def svf(
     symmetric=False,
     scale=True,
     square_exponent=False,
+    denominator_pbc=False,
+    box_side_lengths=None,
 ):
     """The value of two datasets, X and Y. Both X and Y must have the same
     number of rows. The returned result is a value of value for each of the
@@ -49,6 +71,16 @@ def svf(
     square_exponent: bool
         If True, squares the argument of the exponential weight of the
         distances in the input space.
+    denominator_pbc: bool
+        If True, calculates the denominator of the density approximation
+        using periodic boundary conditions for the distances, where the
+        distance between two points i and j along each dimension is taken
+        to be the minimum of the distance d_ij and its closest image,
+        d_ij'.
+    box_side_lengths: array_like
+        If denominator_pbc is True, this argument is required to calculate
+        the periodic boundary conditions properly. Should be the length
+        of each side of the box by coordinate.
 
     Returns
     -------
@@ -97,7 +129,14 @@ def svf(
     if not density:
         v = v.mean(axis=1)
     else:
-        v = v.mean(axis=1) / w.mean(axis=1)
+        if denominator_pbc:
+            X_dist = distance_matrix_pbc_vectorized(X, box_side_lengths)
+            arg = -(X_dist**2) / ls**2 if square_exponent else -X_dist / ls
+            denominator = np.exp(arg)
+            denominator = denominator.mean(axis=1)
+        else:
+            denominator = w.mean(axis=1)
+        v = v.mean(axis=1) / denominator
 
     if scale:
         b = 1.0
@@ -111,18 +150,27 @@ def svf(
 
 @define
 class SVF(MSONable):
-    # TODO: really silly do to it this way
-    params = field(
-        default={
-            "sd": None,
-            "multiplier": 1.0,
-            "characteristic_length": "min",
-            "density": False,
-            "symmetric": False,
-            "scale": True,
-            "square_exponent": False,
-        }
-    )
+    sd = field(default=None)
+    multiplier = field(default=1.0)
+    characteristic_length = field(default="min")
+    density = field(default=False)
+    symmetric = field(default=False)
+    scale = field(default=True)
+    square_exponent = field(default=False)
+    denominator_pbc = field(default=False)
+    box_side_lengths = field(default=None)
 
     def __call__(self, X, Y):
-        return svf(X, Y, **self.params)
+        return svf(
+            X,
+            Y,
+            sd=self.sd,
+            multiplier=self.multiplier,
+            characteristic_length=self.characteristic_length,
+            density=self.density,
+            symmetric=self.symmetric,
+            scale=self.scale,
+            square_exponent=self.square_exponent,
+            denominator_pbc=self.denominator_pbc,
+            box_side_lengths=self.box_side_lengths,
+        )

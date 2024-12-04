@@ -4,14 +4,14 @@ export CUDA_VISIBLE_DEVICES=
 
 EXPERIMENT="Sine2Phase"
 PROJECT_ROOT_DIR="mc_work/SVA2"
-N_MAX="150"
+N_MAX="250"
 
 mkdir -p "$PROJECT_ROOT_DIR"
 
 # Run the control experiments
 ts uv run --python 3.12 \
     sva_run -m hydra/launcher=joblib \
-    "seed=range(100, 300)" \
+    "seed=range(100, 200)" \
     "hydra.launcher.verbose=10" \
     "hydra.launcher.n_jobs=8" \
     "experiment=$EXPERIMENT" \
@@ -25,7 +25,7 @@ ts uv run --python 3.12 \
 # Run the density=True experiments
 ts uv run --python 3.12 \
     sva_run -m hydra/launcher=joblib \
-    "seed=range(100, 300)" \
+    "seed=range(100, 200)" \
     "hydra.launcher.verbose=10" \
     "hydra.launcher.n_jobs=8" \
     "experiment=$EXPERIMENT" \
@@ -39,7 +39,7 @@ ts uv run --python 3.12 \
 # Run the density=True experiments, plus pbc
 ts uv run --python 3.12 \
     sva_run -m hydra/launcher=joblib \
-    "seed=range(100, 300)" \
+    "seed=range(100, 200)" \
     "hydra.launcher.verbose=10" \
     "hydra.launcher.n_jobs=8" \
     "experiment=$EXPERIMENT" \

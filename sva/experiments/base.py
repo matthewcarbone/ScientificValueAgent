@@ -175,6 +175,12 @@ class Experiment(ABC, MSONable):
 
         return get_coordinates(ppd, self.properties.domain)
 
+    def get_box_side_lengths(self):
+        """Gets the length of each dimension."""
+
+        L = self.domain[1, :] - self.domain[0, :]
+        return L.squeeze()
+
     def get_domain_mpl_extent(self):
         """This is a helper for getting the "extent" for matplotlib's
         imshow.

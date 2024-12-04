@@ -24,6 +24,11 @@ def run(config):
 
     # Initialize the policy
     policy = instantiate(config.policy, _convert_="partial")
+    if hasattr(policy, "svf"):
+        L = experiment.get_box_side_lengths()
+        policy.svf = policy.svf(box_side_lengths=L)
+
+    print(policy)
 
     # Initialize the campaign
     campaign = Campaign(

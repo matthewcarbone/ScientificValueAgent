@@ -137,6 +137,27 @@ class RequiresBayesOpt(Policy):
 
     def _get_acquisition_function_kwargs(self, experiment, data): ...
 
+    def _importance_sampling(
+        self, acqf, bounds, sampling_grid_n=100, q=1, **kwargs
+    ):
+        """Perform importance sampling over some acquisition function by discritizing space according to
+        `sampling_grid_n` and constructing a discrete probability distribution over the grid points.
+        """
+        linspaces = [
+            torch.linspace(bounds[0, d], bounds[1, d], sampling_grid_n)
+            for d in range(bounds.shape[1])
+        ]
+        meshgrid = torch.meshgrid(*linspaces, indexing="ij")
+        grid = torch.stack(meshgrid, dim=-1).reshape(-1, bounds.shape[1])
+        with torch.no_grad():
+            values = acqf(grid)
+            probabilities = torch.softmax(values, dim=0).detach().numpy()
+        sampled_indices = np.random.choice(
+            grid.shape[0], size=q, p=probabilities, replace=False
+        )
+        next_points = grid[sampled_indices]
+        return next_points, values[sampled_indices]
+
     def step(self, experiment, data):
         # Get the model and the data
         X, Y, Y_std = self._get_data(experiment, data)
@@ -173,7 +194,9 @@ class RequiresBayesOpt(Policy):
 
         # Get the bounds from the experiment and find the next point
         bounds = torch.tensor(experiment.domain).to(DEVICE)
-        X, v = optimize_acqf(acqf, bounds=bounds, **self.optimize_kwargs)
+        X, v = self.sampling_strategy(
+            acqf, bounds=bounds, **self.optimize_kwargs
+        )  # TODO: add something like https://github.com/matthewcarbone/ScientificValueAgent/blob/7b07459f4cdfabfaa2dd6037b292368588a79712/sva/campaign.py#L277-L281
         X = X.cpu().numpy()
         array_str = np.array_str(X, precision=5)
         logger.debug(f"Next points {array_str} with value {v}")

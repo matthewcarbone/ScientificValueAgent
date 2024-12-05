@@ -171,7 +171,7 @@ class Campaign(BaseCampaign):
 
         # Otherwise
         acqf = self.acquisition_function(gp, **kwargs)
-        next_points, value = optimize_acqf(
+        next_points, value = self.sampling_strategy(
             acqf,
             bounds=bounds,
             **self.optimize_acqf_kwargs,
@@ -217,6 +217,27 @@ class Campaign(BaseCampaign):
         state.pop("Y")
         state.pop("n_experiments")
 
+    def _importance_sampling(
+        self, acqf, bounds, sampling_grid_n=100, q=1, **kwargs
+    ):
+        """Perform importance sampling over some acquisition function by discritizing space according to
+        `sampling_grid_n` and constructing a discrete probability distribution over the grid points.
+        """
+        linspaces = [
+            torch.linspace(bounds[0, d], bounds[1, d], sampling_grid_n)
+            for d in range(bounds.shape[1])
+        ]
+        meshgrid = torch.meshgrid(*linspaces, indexing="ij")
+        grid = torch.stack(meshgrid, dim=-1).reshape(-1, bounds.shape[1])
+        with torch.no_grad():
+            values = acqf(grid)
+            probabilities = torch.softmax(values, dim=0).detach().numpy()
+        sampled_indices = np.random.choice(
+            grid.shape[0], size=q, p=probabilities, replace=False
+        )
+        next_points = grid[sampled_indices]
+        return next_points, values[sampled_indices]
+
     def __init__(
         self,
         *,
@@ -224,6 +245,7 @@ class Campaign(BaseCampaign):
         experiment,
         value,
         model,
+        sampling_strategy=None,
         # acquisition_function,
         # predict_points_per_dimension,
         # run_predict_every,
@@ -239,6 +261,7 @@ class Campaign(BaseCampaign):
         data : sva.data.CampaignData
         experiment : sva.truth.Truth
         value : sva.value.BaseValue
+        sampling_strategy : None, optional, defaults to botorch optimize_acqf
         acquisition_function : None, optional
             Description
         acquisition_function_kwargs : None, optional
@@ -251,6 +274,11 @@ class Campaign(BaseCampaign):
         self.experiment = experiment
         self.value = value
         self.model = model
+        self.sampling_strategy = {
+            None: optimize_acqf,
+            "botorch": optimize_acqf,
+            "importance_sampling": self._importance_sampling,
+        }.get(sampling_strategy, sampling_strategy)
 
         # self.acquisition_function = acquisition_function
 

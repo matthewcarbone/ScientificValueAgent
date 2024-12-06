@@ -1,0 +1,12 @@
+# Importance sampling
+
+n_max: 100
+model_fitting_function:
+  _target_: sva.models.fit_EasyGP_mll
+  _partial_: true
+optimize_kwargs:
+  q: 1
+  n_samples_per_dimension: 10 
+save_acquisition_function: false
+save_model: false
+use_importance_sampling: true

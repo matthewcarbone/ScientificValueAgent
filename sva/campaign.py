@@ -101,10 +101,10 @@ def importance_sampling(acqf, bounds, **kwargs):
 
     d = bounds.shape[1]
     halton = qmc.Halton(d=d)
-    n = kwargs.get("n_samples", d * 10)  # Default 10d points
+    n = kwargs.get("n_samples_per_dimension", 10)  # Default 10d points
     q = kwargs.get("q", 1)
     assert q < n
-    samples = halton.random(n=n)
+    samples = halton.random(n=n * d)
     qual = qmc.discrepancy(samples)
     logger.debug(f"qmc discrepancy (sample quality index) = {qual:.02e}")
     samples = qmc.scale(samples, bounds[0, :].squeeze(), bounds[1, :].squeeze())

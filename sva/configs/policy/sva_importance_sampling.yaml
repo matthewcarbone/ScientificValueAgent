@@ -1,0 +1,26 @@
+
+_target_: sva.campaign.FixedSVAPolicy
+
+acquisition_function:
+  _target_: botorch.acquisition.analytic.UpperConfidenceBound
+  _partial_: true
+  beta: 20.0
+
+svf:
+  _target_: sva.value.SVF
+  _partial_: true
+  sd: null
+  multiplier: 1.0
+  characteristic_length: min
+  density: false
+  symmetric: false
+  square_exponent: false
+  denominator_pbc: true
+
+
+penalty_function_factory: null
+
+defaults:
+  - _self_
+  - importance_sampling.yaml
+  - /models@model_factory: single_task_gp.yaml

@@ -20,6 +20,7 @@ ts uv run --python 3.12 \
     "policy.acquisition_function=MaxVar,EI,PI,UCB-20,UCB-10,UCB-1" \
     "policy.svf.density=false" \
     "policy.svf.denominator_pbc=false" \
+    "policy.optimize_kwargs.n_samples_per_dimension=20" \
     "policy.n_max=$N_MAX" \
     "paths.root_dir=$PROJECT_ROOT_DIR"
 
@@ -35,6 +36,7 @@ ts uv run --python 3.12 \
     "policy.acquisition_function=MaxVar,EI,PI,UCB-20,UCB-10,UCB-1" \
     "policy.svf.density=true" \
     "policy.svf.denominator_pbc=false" \
+    "policy.optimize_kwargs.n_samples_per_dimension=20" \
     "policy.n_max=$N_MAX" \
     "paths.root_dir=$PROJECT_ROOT_DIR"
 
@@ -50,5 +52,6 @@ ts uv run --python 3.12 \
     "policy.acquisition_function=MaxVar,EI,PI,UCB-20,UCB-10,UCB-1" \
     "policy.svf.density=true" \
     "policy.svf.denominator_pbc=true" \
+    "policy.optimize_kwargs.n_samples_per_dimension=20" \
     "policy.n_max=$N_MAX" \
     "paths.root_dir=$PROJECT_ROOT_DIR"

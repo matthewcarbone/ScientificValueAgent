@@ -108,14 +108,18 @@ def importance_sampling(acqf, bounds, **kwargs):
     qual = qmc.discrepancy(samples)
     logger.debug(f"qmc discrepancy (sample quality index) = {qual:.02e}")
     samples = qmc.scale(samples, bounds[0, :].squeeze(), bounds[1, :].squeeze())
+    samples = samples.reshape(samples.shape[0], q, d)
+    samples = torch.tensor(samples).to(DEVICE)
 
     with torch.no_grad():
         values = acqf(samples)
         probabilities = torch.softmax(values, dim=0).detach().numpy()
+        logger.debug(f"probability shape is {probabilities.shape}")
     sampled_indices = np.random.choice(
         samples.shape[0], size=q, p=probabilities, replace=False
     )
     next_points = samples[sampled_indices]
+    next_points = next_points.reshape(q, d)
     return next_points, values[sampled_indices]
 
 

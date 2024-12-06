@@ -10,6 +10,7 @@ from attrs.validators import ge, instance_of
 from botorch.acquisition.penalized import PenalizedAcquisitionFunction
 from botorch.optim import optimize_acqf
 from monty.json import MSONable
+from scipy.stats import qmc
 
 from sva.bayesian_optimization import parse_acquisition_function
 from sva.logger import logger
@@ -93,6 +94,31 @@ class GridPolicy(Policy):
 DEFAULT_OPTIMIZE_KWARGS = {"q": 1, "num_restarts": 200, "raw_samples": 1000}
 
 
+def importance_sampling(acqf, bounds, **kwargs):
+    """Perform importance sampling over some acquisition function by discritizing space according to
+    `sampling_grid_n` and constructing a discrete probability distribution over the grid points.
+    """
+
+    d = bounds.shape[1]
+    halton = qmc.Halton(d=d)
+    n = kwargs.get("n_samples", d * 10)  # Default 10d points
+    q = kwargs.get("q", 1)
+    assert q < n
+    samples = halton.random(n=n)
+    qual = qmc.discrepancy(samples)
+    logger.debug(f"qmc discrepancy (sample quality index) = {qual:.02e}")
+    samples = qmc.scale(samples, bounds[0, :].squeeze(), bounds[1, :].squeeze())
+
+    with torch.no_grad():
+        values = acqf(samples)
+        probabilities = torch.softmax(values, dim=0).detach().numpy()
+    sampled_indices = np.random.choice(
+        samples.shape[0], size=q, p=probabilities, replace=False
+    )
+    next_points = samples[sampled_indices]
+    return next_points, values[sampled_indices]
+
+
 @define(kw_only=True)
 class RequiresBayesOpt(Policy):
     """Defines a few methods that are required for non-trivial policies.
@@ -110,6 +136,7 @@ class RequiresBayesOpt(Policy):
     )
     save_model = field(default=False, validator=instance_of(bool))
     calculate_model_optimum = field(default=True, validator=instance_of(bool))
+    use_importance_sampling = field(default=False, validator=instance_of(bool))
 
     def _get_data(self, experiment, data):
         """Retrieves the current data at every step. This might include some
@@ -136,27 +163,6 @@ class RequiresBayesOpt(Policy):
     def _get_metadata(self, experiment, data): ...
 
     def _get_acquisition_function_kwargs(self, experiment, data): ...
-
-    def _importance_sampling(
-        self, acqf, bounds, sampling_grid_n=100, q=1, **kwargs
-    ):
-        """Perform importance sampling over some acquisition function by discritizing space according to
-        `sampling_grid_n` and constructing a discrete probability distribution over the grid points.
-        """
-        linspaces = [
-            torch.linspace(bounds[0, d], bounds[1, d], sampling_grid_n)
-            for d in range(bounds.shape[1])
-        ]
-        meshgrid = torch.meshgrid(*linspaces, indexing="ij")
-        grid = torch.stack(meshgrid, dim=-1).reshape(-1, bounds.shape[1])
-        with torch.no_grad():
-            values = acqf(grid)
-            probabilities = torch.softmax(values, dim=0).detach().numpy()
-        sampled_indices = np.random.choice(
-            grid.shape[0], size=q, p=probabilities, replace=False
-        )
-        next_points = grid[sampled_indices]
-        return next_points, values[sampled_indices]
 
     def step(self, experiment, data):
         # Get the model and the data
@@ -194,9 +200,12 @@ class RequiresBayesOpt(Policy):
 
         # Get the bounds from the experiment and find the next point
         bounds = torch.tensor(experiment.domain).to(DEVICE)
-        X, v = self.sampling_strategy(
-            acqf, bounds=bounds, **self.optimize_kwargs
-        )  # TODO: add something like https://github.com/matthewcarbone/ScientificValueAgent/blob/7b07459f4cdfabfaa2dd6037b292368588a79712/sva/campaign.py#L277-L281
+        if self.use_importance_sampling:
+            X, v = importance_sampling(
+                acqf, bounds=bounds, **self.optimize_kwargs
+            )
+        else:
+            X, v = optimize_acqf(acqf, bounds=bounds, **self.optimize_kwargs)
         X = X.cpu().numpy()
         array_str = np.array_str(X, precision=5)
         logger.debug(f"Next points {array_str} with value {v}")

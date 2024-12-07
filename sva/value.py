@@ -140,7 +140,7 @@ def svf(
 
     if scale:
         b = 1.0
-        a = -1.0
+        a = 0.0
         vmin = v.min()
         vmax = v.max()
         v_scaled = (b - a) * (v - vmin) / (vmax - vmin) + a

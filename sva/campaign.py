@@ -115,6 +115,7 @@ def importance_sampling(acqf, bounds, **kwargs):
     with torch.no_grad():
         values = acqf(samples)
     values = values.detach().numpy()
+    values[values < 0] = 0.0
     # probabilities = torch.softmax(values, dim=0).detach().numpy()
     probabilities = values / values.sum()
 

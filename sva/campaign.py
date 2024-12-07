@@ -104,17 +104,24 @@ def importance_sampling(acqf, bounds, **kwargs):
     n = kwargs.get("n_samples_per_dimension", 10)  # Default 10d points
     q = kwargs.get("q", 1)
     assert q < n
-    samples = halton.random(n=n * d)
+    samples = halton.random(n=n**d)
     qual = qmc.discrepancy(samples)
     logger.debug(f"qmc discrepancy (sample quality index) = {qual:.02e}")
+    logger.debug(f"bounds {bounds[0, :].squeeze()} {bounds[1, :].squeeze()}")
     samples = qmc.scale(samples, bounds[0, :].squeeze(), bounds[1, :].squeeze())
     samples = samples.reshape(samples.shape[0], q, d)
     samples = torch.tensor(samples).to(DEVICE)
 
     with torch.no_grad():
         values = acqf(samples)
-        probabilities = torch.softmax(values, dim=0).detach().numpy()
-        logger.debug(f"probability shape is {probabilities.shape}")
+    values = values.detach().numpy()
+    # probabilities = torch.softmax(values, dim=0).detach().numpy()
+    probabilities = values / values.sum()
+
+    logger.debug(f"probability shape is {probabilities.shape}")
+    logger.debug(f"Sum of probabilities is {probabilities.sum()}")
+    samples = samples.reshape(samples.shape[0], d)
+    logger.debug(f"samples shape {samples.shape}")
     sampled_indices = np.random.choice(
         samples.shape[0], size=q, p=probabilities, replace=False
     )

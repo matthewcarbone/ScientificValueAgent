@@ -16,7 +16,7 @@ apply-version *VERSION: print-version
     rm .version.tmp
 
 serve-jupyter:
-    uv run --extra notebook --extra utilities jupyter lab --notebook-dir="~"
+    uv run --with=ipython,jupyterlab,matplotlib,seaborn,h5netcdf,netcdf4,scikit-learn,scipy,xarray,"nbconvert==5.6.1" jupyter lab --notebook-dir="~"
 
 run-ipython:
     uv run ipython

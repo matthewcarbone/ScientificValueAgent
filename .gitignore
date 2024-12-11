@@ -13,6 +13,7 @@
 results/
 raw/
 legacy/
+*.nc
 
 .DS_Store
 

@@ -7,6 +7,7 @@ from .simple2d.simple2d import Simple2d
 from .simple5phase.simple5phase import Simple5Phase
 from .simplesigmoid.simplesigmoid import SimpleSigmoid
 from .sine2phase.sine2phase import Sine2Phase
+from .wafer_AlLiFe.wafer_AlLiFe import WaferAlLiFe
 
 __all__ = [
     "Simple2d",
@@ -19,4 +20,5 @@ __all__ = [
     "GPDreamKNN",
     "QuadraticPrior",
     "Simple5Phase",
+    "WaferAlLiFe",
 ]

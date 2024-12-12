@@ -13,23 +13,24 @@ The Scientific Value Agent (SVA) is a collection of tools for Gaussian Process (
 
 # 🧱 Install
 
-Currently, the best way to install the SVA code is to simply clone the repository, and then install in editable form inside some conda environment or related, that way both the command line interface and API are accessible. For instance
+Currently, the best way to install the SVA code is to simply clone the repository, then using `uv` to run campaigns (which installs the package to a local environment in editable mode). First, [install uv](https://docs.astral.sh/uv/getting-started/installation/). Then,
 
 ```bash
-conda create -n py3.11-sva-e python=3.11 -y
-conda activate py3.11-sva-e
 git clone git@github.com:matthewcarbone/ScientificValueAgent.git
 cd ScientificValueAgent
-pip install -e .
+uv run sva_run experiment=Sine2Phase policy=sva_importance_sampling
 ```
+
+You can also use `uv run sva_run -h` to print the options to the command line (powered by [Hydra](https://hydra.cc/docs/intro/)).
+
+In addition, there is a `justfile` which has a few useful commands. First, install [just](https://github.com/casey/just). Then, you can e.g. serve a Jupyter notebook using the SVA environment with `just serve-jupyter`.
 
 
 # 🚀 Examples
 
-We have a few notebooks to get started with the basics of GP-based Bayesian Optimization, which can be found [here](https://github.com/matthewcarbone/ScientificValueAgent/tree/master/notebooks). The links below open in Google Colab notebooks.
-- [Introduction to single-task and fixed-noise GPs in 1d](https://colab.research.google.com/github/matthewcarbone/ScientificValueAgent/blob/master/notebooks/00_simple_GP.ipynb)
-- [Introduction to single-task GPs in a 2d experiment](https://colab.research.google.com/github/matthewcarbone/ScientificValueAgent/blob/master/notebooks/01_simple_2d_GP.ipynb)
-- [Introduction to the SVA](https://colab.research.google.com/github/matthewcarbone/ScientificValueAgent/blob/master/notebooks/02_simple_SVA.ipynb)
+See the [scripts](https://github.com/matthewcarbone/ScientificValueAgent/tree/master/scripts) directory for some examples of how to use SVA on some pre-defined [experiments](https://github.com/matthewcarbone/ScientificValueAgent/tree/master/sva/experiments). These use [Task Spooler](https://github.com/justanhduc/task-spooler) to launch many jobs in parallel, but you can simply remove the `ts` prefix to the command to launch them in your shell.
+
+Once jobs have completed, [`read_data`](https://github.com/matthewcarbone/ScientificValueAgent/blob/41863beb95b9dc31bdf29e918b4ed3ec969dd1b5/sva/postprocessing.py#L42) can be used from `sva.postprocessing` to load all results, which can be further analyzed in e.g. a Jupyter Notebook.
 
 # 💲 Funding acknowledgement
 

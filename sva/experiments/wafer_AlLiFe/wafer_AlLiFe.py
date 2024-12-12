@@ -21,7 +21,7 @@ class WaferAlLiFe(Experiment):
         factory=lambda: ExperimentProperties(
             n_input_dim=2,
             n_output_dim=650,
-            domain=np.array([[-20.0, -20.0], [-20.0, -20.0]]).T,
+            domain=np.array([[-20.0, 20.0], [-20.0, 20.0]]).T,
         )
     )
 

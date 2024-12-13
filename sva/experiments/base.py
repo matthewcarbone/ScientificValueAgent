@@ -21,6 +21,9 @@ class ExperimentProperties(MSONable):
     n_input_dim = field(validator=instance_of(int))
     n_output_dim = field(validator=instance_of(int))
     domain = field(validator=optional(instance_of(np.ndarray)))
+    constraint = field(
+        default={"type": "rectangular"}, validator=instance_of(dict)
+    )
 
     def __eq__(self, x):
         if self.n_input_dim != x.n_input_dim:

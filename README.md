@@ -8,8 +8,8 @@
 
 The Scientific Value Agent (SVA) is a collection of tools for Gaussian Process (GP)-based Bayesian Optimization, particularly for use in epistemic experimentation (experiments in which you know nothing, have nothing to optimize and want to simply explore the experimental space as completely as you can).
 
-> [!NOTE]
-> If you use the Scientific Value Agent, please consider citing our [manuscript](https://doi.org/10.1016/j.matt.2023.11.012) in Matter. The software corresponding to this manuscript is tagged as [`v1.1.0`](https://github.com/matthewcarbone/ScientificValueAgent/tree/v1.1.0).
+<!-- > [!NOTE]
+> If you use the Scientific Value Agent, please consider citing our [manuscript](https://doi.org/10.1016/j.matt.2023.11.012) in Matter. The software corresponding to this manuscript is tagged as [`v1.1.0`](https://github.com/matthewcarbone/ScientificValueAgent/tree/v1.1.0). -->
 
 # 🧱 Install
 
@@ -47,3 +47,21 @@ The Software resulted from work developed under a U.S. Government Contract No. D
 THE SOFTWARE IS SUPPLIED "AS IS" WITHOUT WARRANTY OF ANY KIND. THE UNITED STATES, THE UNITED STATES DEPARTMENT OF ENERGY, AND THEIR EMPLOYEES: (1) DISCLAIM ANY WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE OR NON-INFRINGEMENT, (2) DO NOT ASSUME ANY LEGAL LIABILITY OR RESPONSIBILITY FOR THE ACCURACY, COMPLETENESS, OR USEFULNESS OF THE SOFTWARE, (3) DO NOT REPRESENT THAT USE OF THE SOFTWARE WOULD NOT INFRINGE PRIVATELY OWNED RIGHTS, (4) DO NOT WARRANT THAT THE SOFTWARE WILL FUNCTION UNINTERRUPTED, THAT IT IS ERROR-FREE OR THAT ANY ERRORS WILL BE CORRECTED.
 
 IN NO EVENT SHALL THE UNITED STATES, THE UNITED STATES DEPARTMENT OF ENERGY, OR THEIR EMPLOYEES BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, CONSEQUENTIAL, SPECIAL OR PUNITIVE DAMAGES OF ANY KIND OR NATURE RESULTING FROM EXERCISE OF THIS LICENSE AGREEMENT OR THE USE OF THE SOFTWARE.
+
+# Citation
+
+If you use the Scientific Value Agent, please consider citing our [manuscript](https://doi.org/10.1016/j.matt.2023.11.012) in Matter. The software corresponding to this manuscript is tagged as [`v1.1.0`](https://github.com/matthewcarbone/ScientificValueAgent/tree/v1.1.0).
+
+```bibtex
+@article{carbone2024flexible,
+  title={Flexible formulation of value for experiment interpretation and design},
+  author={Carbone, Matthew R and Kim, Hyeong Jin and Fernando, Chandima and Yoo, Shinjae and Olds, Daniel and Joress, Howie and DeCost, Brian and Ravel, Bruce and Zhang, Yugang and Maffettone, Phillip M},
+  journal={Matter},
+  volume={7},
+  number={2},
+  pages={685--696},
+  year={2024},
+  url={https://doi.org/10.1016/j.matt.2023.11.012},
+  publisher={Elsevier}
+}
+```

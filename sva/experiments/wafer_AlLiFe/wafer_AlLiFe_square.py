@@ -12,7 +12,7 @@ root = Path(__file__).parent.resolve()
 
 @cache
 def load_data():
-    return xr.open_dataset(root / "ds_AlLiFe_square_29Jan2025_14-31-22.nc")
+    return xr.open_dataset(root / "ds_AlLiFe_square_29Jan2025_15-03-20.nc")
 
 
 @define

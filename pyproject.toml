@@ -43,6 +43,7 @@ test = [
 
 [tool.ruff]
 line-length = 80
+exclude = ["sva/_version.py"]
 
 [tool.ruff.format]
 quote-style = "double"

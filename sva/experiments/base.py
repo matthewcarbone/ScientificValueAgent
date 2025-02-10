@@ -60,7 +60,7 @@ class Experiment(ABC, MSONable):
     def __attrs_post_init__(self):
         if self.noise == 0.0:
             return
-        if isinstance(self.noise, callable) and self.errorbars is not None:
+        if callable(self.noise) and self.errorbars is not None:
             raise ValueError("noise cannot be set if errorbars is set")
 
     @noise.validator

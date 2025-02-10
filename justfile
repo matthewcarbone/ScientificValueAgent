@@ -2,7 +2,6 @@ set dotenv-load
 
 print-version:
     @echo "Current version is:" `uvx --with hatch hatch version`
-    
 
 [confirm]
 apply-version *VERSION: print-version
@@ -17,6 +16,9 @@ apply-version *VERSION: print-version
 
 serve-jupyter:
     uv run --with=ipython,jupyterlab,matplotlib,seaborn,h5netcdf,netcdf4,scikit-learn,scipy,xarray,"nbconvert==5.6.1" jupyter lab --notebook-dir="~"
+
+serve-jupyter-no-browser:
+    pm2 start "uv run --with=ipython,jupyterlab,matplotlib,seaborn,h5netcdf,netcdf4,scikit-learn,scipy,xarray,"nbconvert==5.6.1" jupyter lab --notebook-dir="~" --no-browser" --name jupyter-sva
 
 run-ipython:
     uv run ipython

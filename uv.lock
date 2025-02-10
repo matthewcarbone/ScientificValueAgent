@@ -1211,7 +1211,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "attrs", specifier = ">=24.2.0" },
-    { name = "botorch", specifier = ">=0.10.0" },
+    { name = "botorch", specifier = "==0.10.0" },
     { name = "codecov", marker = "extra == 'test'", specifier = ">=2.1.13" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.6.8" },
     { name = "flake8", marker = "extra == 'linting'", specifier = ">=7.1.1" },

@@ -10,7 +10,7 @@ import torch
 from attrs import define, field, validators
 from botorch.acquisition.analytic import UpperConfidenceBound
 from botorch.fit import fit_gpytorch_mll
-from botorch.models import FixedNoiseGP, MultiTaskGP, SingleTaskGP
+from botorch.models import MultiTaskGP, SingleTaskGP
 from botorch.models.transforms.input import Normalize
 from botorch.models.transforms.outcome import Standardize
 from botorch.optim import optimize_acqf
@@ -45,7 +45,7 @@ def set_train_(gp):
     gp.likelihood.train()
 
 
-def get_model_hyperparameters(model):
+def get_model_hyperparameters(model, device=DEVICE):
     """Iterates through a torch-like object which has a named_parameters()
     method and returns a dictionary of all of the parameters, where values
     are in numpy format.
@@ -63,9 +63,18 @@ def get_model_hyperparameters(model):
     d = {}
     for p in model.named_parameters():
         p0 = str(p[0])
-        p1 = p[1].detach().numpy()
+        p1 = p[1].detach().to(device).numpy()
         d[p0] = p1
     return d
+
+
+# Modified helper function for device-aware tensor conversion
+def to_device_tensor(data, device=DEVICE):
+    if isinstance(data, np.ndarray):
+        return torch.from_numpy(data).to(device)
+    elif isinstance(data, torch.Tensor):
+        return data.to(device)
+    return data
 
 
 def get_simple_model(
@@ -79,16 +88,14 @@ def get_simple_model(
     transform_input=True,
     transform_output=True,
     task_feature=-1,
+    device=DEVICE,
     **model_kwargs,
 ):
     """A lightweight helper function that returns a botorch SingleTaskGP or
-    FixedNoiseGP."""
+    MultiTaskGP."""
 
-    if not isinstance(X, torch.Tensor):
-        X = torch.tensor(X)
-
-    if not isinstance(Y, torch.Tensor):
-        Y = torch.tensor(Y)
+    X = to_device_tensor(X)
+    Y = to_device_tensor(Y)
 
     input_transform = (
         Normalize(X.shape[1], transform_on_eval=True)
@@ -98,7 +105,7 @@ def get_simple_model(
     outcome_transform = Standardize(Y.shape[1]) if transform_output else None
 
     if train_Yvar is not None and not isinstance(train_Yvar, torch.Tensor):
-        train_Yvar = torch.tensor(train_Yvar)
+        train_Yvar = to_device_tensor(train_Yvar)
 
     if model_type == "SingleTaskGP":
         if train_Yvar is not None:
@@ -119,12 +126,13 @@ def get_simple_model(
         )
 
     elif model_type == "FixedNoiseGP":
-        # Likelihood argument is ignored here
-        model = FixedNoiseGP(
+        # Implement FixedNoiseGP using SingleTaskGP with train_Yvar
+        model = SingleTaskGP(
             train_X=X,
             train_Y=Y,
-            train_Yvar=train_Yvar,
+            train_Yvar=train_Yvar,  # This makes it behave like the old FixedNoiseGP
             covar_module=covar_module,
+            mean_module=mean_module,
             input_transform=input_transform,
             outcome_transform=outcome_transform,
             **model_kwargs,
@@ -147,8 +155,7 @@ def get_simple_model(
     else:
         raise ValueError(f"Invalid model type {model_type}")
 
-    model = deepcopy(model)
-    model = model.to(DEVICE)
+    model = model.to(device)
     return model
 
 
@@ -212,10 +219,13 @@ def fit_EasyGP_mll(easygp, device=DEVICE, **kwargs):
     """Utility for fitting EasyGP model. Just a lightweight wrapper to
     make it easier."""
 
+    # Get device from model parameters if not specified
+    if device is None:
+        device = next(easygp.model.parameters()).device
     return fit_gp_gpytorch_mll_(easygp.model, device=device, **kwargs)
 
 
-def predict(gp, X, observation_noise=True):
+def predict(gp, X, observation_noise=True, device=DEVICE):
     """Runs a forward prediction on the model.
 
     Parameters
@@ -230,15 +240,15 @@ def predict(gp, X, observation_noise=True):
     """
 
     set_eval_(gp)
-    X = torch.tensor(X)
+    X = torch.tensor(X).to(device)
     with torch.no_grad(), gpytorch.settings.fast_pred_var():
         posterior = gp.posterior(X, observation_noise=observation_noise)
-    mu = posterior.mean.detach().numpy().squeeze()
-    var = posterior.variance.detach().numpy().squeeze()
+    mu = posterior.mean.detach().cpu().numpy().squeeze()
+    var = posterior.variance.detach().cpu().numpy().squeeze()
     return mu, var
 
 
-def sample(gp, X, samples=20, observation_noise=False):
+def sample(gp, X, samples=20, observation_noise=False, device=DEVICE):
     """Samples from the GP posterior.
 
     Parameters
@@ -255,11 +265,11 @@ def sample(gp, X, samples=20, observation_noise=False):
     """
 
     set_eval_(gp)
-    X = torch.tensor(X)
+    X = torch.tensor(X).to(device)
     with torch.no_grad(), gpytorch.settings.fast_pred_var():
         posterior = gp.posterior(X, observation_noise=observation_noise)
         sampled = posterior.sample(torch.Size([samples]))
-    return sampled.detach().numpy().squeeze()
+    return sampled.detach().cpu().numpy().squeeze()
 
 
 @define
@@ -313,7 +323,7 @@ class GP(MSONable):
     def sample(self, X, samples=20, observation_noise=False):
         return sample(self.model, X, samples, observation_noise)
 
-    def find_optima(self, domain, **kwargs):
+    def find_optima(self, domain, device=DEVICE, **kwargs):
         """Finds the optima of the GP, either the minimum or the maximum.
 
         Properties
@@ -326,7 +336,6 @@ class GP(MSONable):
         **kwargs
             Additional keyword arguments to pass to the optimizer.
         """
-
         if "q" in kwargs:
             warnings.warn(
                 "q has been provided to the optimizer but will be "
@@ -343,10 +352,10 @@ class GP(MSONable):
             kwargs["raw_samples"] = 1000
 
         acqf = UpperConfidenceBound(self.model, beta=0.0)
-        domain = torch.FloatTensor(domain).to(DEVICE)
+        domain = torch.FloatTensor(domain).to(device)
         return optimize_acqf(acqf, bounds=domain, **kwargs)
 
-    def dream(self, domain, ppd=20):
+    def dream(self, domain, ppd=20, device=DEVICE):
         """Creates a new Gaussian Process model by sampling a single instance
         of the GP, and then retraining a _new_ GP on a densely sampled grid
         assuming that single sample is the ground truth.
@@ -367,7 +376,7 @@ class GP(MSONable):
         """
 
         X = get_coordinates(ppd, domain)
-        Y = self.sample(X, samples=1)
+        Y = self.sample(X, samples=1, device=device)
         Y = Y.reshape(-1, 1)
 
         # Now fit a new GP to this data
@@ -420,6 +429,7 @@ class EasySingleTaskGP(GP):
         transform_input=True,
         transform_output=True,
         input_dims=None,
+        device=DEVICE,
         **model_kwargs,
     ):
         """Gets a SingleTaskGP from some sensible default parameters."""
@@ -436,8 +446,8 @@ class EasySingleTaskGP(GP):
                     "input dimension, meaning it is not possible to "
                     "create a prior. You must specify input_dims in this case"
                 )
-            X = torch.empty(0, input_dims)
-            Y = torch.empty(0, 1)
+            X = torch.empty(0, input_dims, device=device)
+            Y = torch.empty(0, 1, device=device)
             transform_input = False
             transform_output = False
 
@@ -472,7 +482,7 @@ class EasySingleTaskGP(GP):
 
 @define(kw_only=True)
 class EasyFixedNoiseGP(GP):
-    model = field(validator=validators.instance_of(FixedNoiseGP))
+    model = field(validator=validators.instance_of(SingleTaskGP))
 
     @classmethod
     def from_default(
@@ -488,7 +498,7 @@ class EasyFixedNoiseGP(GP):
         transform_output=True,
         **model_kwargs,
     ):
-        """Gets a SingleTaskGP from some sensible default parameters."""
+        """Gets a SingleTaskGP with fixed noise from some sensible default parameters."""
 
         if isinstance(covar_module, dict):
             covar_module = get_covar_module(covar_module)

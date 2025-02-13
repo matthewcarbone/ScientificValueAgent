@@ -153,9 +153,7 @@ def get_latin_hypercube_points(domain, n=5):
     np.ndarray
     """
 
-    sampler = qmc.LatinHypercube(
-        d=domain.shape[1], optimization="random-cd", seed=GLOBAL_STATE["seed"]
-    )
+    sampler = qmc.LatinHypercube(d=domain.shape[1], optimization="random-cd")
     sample = sampler.random(n=n)
     return qmc.scale(sample, *domain)
 

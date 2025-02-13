@@ -21,6 +21,9 @@ class ExperimentProperties(MSONable):
     n_input_dim = field(validator=instance_of(int))
     n_output_dim = field(validator=instance_of(int))
     domain = field(validator=optional(instance_of(np.ndarray)))
+    constraint = field(
+        default={"type": "rectangular"}, validator=instance_of(dict)
+    )
 
     def __eq__(self, x):
         if self.n_input_dim != x.n_input_dim:
@@ -57,7 +60,7 @@ class Experiment(ABC, MSONable):
     def __attrs_post_init__(self):
         if self.noise == 0.0:
             return
-        if isinstance(self.noise, callable) and self.errorbars is not None:
+        if callable(self.noise) and self.errorbars is not None:
             raise ValueError("noise cannot be set if errorbars is set")
 
     @noise.validator

@@ -254,7 +254,7 @@ class FixedPolicy(RequiresBayesOpt):
     string alias for that partial. A dictionary for converting between
     these representations is provided in sva.bayesian_optimization."""
 
-    acquisition_function = field(default="EI")
+    acquisition_function = field(default="LogEI")
     penalty_function_factory = field(default=None)
     penalty_strength = field(default=1000.0)
 
